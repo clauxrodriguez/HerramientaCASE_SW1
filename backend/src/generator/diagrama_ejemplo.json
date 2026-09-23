@@ -1,0 +1,339 @@
+{
+  "id": "sample-diagram",
+  "name": "Sample UML Diagram",
+  "package": "com.example",
+  "createdAt": "2025-11-10T15:13:18.271Z",
+  "updatedAt": "2025-11-10T15:13:18.271Z",
+  "classes": [
+    {
+      "id": "class-1762787623869-uqq0gn",
+      "name": "VENTA",
+      "attributes": [
+        {
+          "name": "id",
+          "type": "Integer",
+          "nullable": false,
+          "unique": false,
+          "isId": false
+        },
+        {
+          "name": "fecha",
+          "type": "LocalDate",
+          "nullable": false,
+          "unique": false,
+          "isId": false
+        },
+        {
+          "name": "total",
+          "type": "Float",
+          "nullable": false,
+          "unique": false,
+          "isId": false
+        }
+      ],
+      "methods": [],
+      "position": {
+        "x": 259,
+        "y": 199
+      },
+      "width": 200,
+      "height": 100
+    },
+    {
+      "id": "class-1762787695627-4mygf4",
+      "name": "FACTURA",
+      "attributes": [
+        {
+          "name": "idFactura",
+          "type": "Integer",
+          "nullable": false,
+          "unique": false,
+          "isId": false
+        },
+        {
+          "name": "Fecha",
+          "type": "LocalDate",
+          "nullable": false,
+          "unique": false,
+          "isId": false
+        },
+        {
+          "name": "montoTotal",
+          "type": "Float",
+          "nullable": false,
+          "unique": false,
+          "isId": false
+        }
+      ],
+      "methods": [],
+      "position": {
+        "x": 721,
+        "y": -24
+      },
+      "width": 200,
+      "height": 100
+    },
+    {
+      "id": "class-1762787758323-p4ft5t",
+      "name": "PRODUCTO",
+      "attributes": [
+        {
+          "name": "idProducto",
+          "type": "Integer",
+          "nullable": false,
+          "unique": false,
+          "isId": true
+        },
+        {
+          "name": "Nombre",
+          "type": "String",
+          "nullable": false,
+          "unique": false,
+          "isId": false
+        },
+        {
+          "name": "descripcion",
+          "type": "String",
+          "nullable": false,
+          "unique": false,
+          "isId": false
+        },
+        {
+          "name": "precioUnitario",
+          "type": "Float",
+          "nullable": false,
+          "unique": false,
+          "isId": false
+        },
+        {
+          "name": "stock",
+          "type": "Integer",
+          "nullable": false,
+          "unique": false,
+          "isId": false
+        }
+      ],
+      "methods": [],
+      "position": {
+        "x": 241,
+        "y": 539
+      },
+      "width": 200,
+      "height": 100
+    },
+    {
+      "id": "cls_mhtaejuj6jwxd5",
+      "name": "PRODUCTO_VENTA_DETALLE",
+      "attributes": [],
+      "methods": [],
+      "position": {
+        "x": 647,
+        "y": 381
+      },
+      "width": 180,
+      "height": 120,
+      "metadata": {
+        "generatedJoinFor": [
+          "class-1762787758323-p4ft5t",
+          "class-1762787623869-uqq0gn"
+        ],
+        "hiddenInCanvas": false
+      }
+    },
+    {
+      "id": "class-1762787925161-ph344e",
+      "name": "CATEGORIA",
+      "attributes": [
+        {
+          "name": "Id",
+          "type": "Integer",
+          "nullable": false,
+          "unique": false,
+          "isId": false
+        },
+        {
+          "name": "Nombre",
+          "type": "String",
+          "nullable": false,
+          "unique": false,
+          "isId": false
+        }
+      ],
+      "methods": [],
+      "position": {
+        "x": 776,
+        "y": 561
+      },
+      "width": 200,
+      "height": 100
+    },
+    {
+      "id": "class-1762787993514-ya3j8f",
+      "name": "CLIENTE",
+      "attributes": [
+        {
+          "name": "Id",
+          "type": "Integer",
+          "nullable": false,
+          "unique": false,
+          "isId": false
+        },
+        {
+          "name": "Tipo",
+          "type": "String",
+          "nullable": false,
+          "unique": false,
+          "isId": false
+        },
+        {
+          "name": "email",
+          "type": "String",
+          "nullable": false,
+          "unique": false,
+          "isId": false
+        }
+      ],
+      "methods": [],
+      "position": {
+        "x": -126,
+        "y": 191
+      },
+      "width": 200,
+      "height": 100
+    },
+    {
+      "id": "class-1762787996946-oj1ay9",
+      "name": "EMLEADO",
+      "attributes": [
+        {
+          "name": "id",
+          "type": "Integer",
+          "nullable": false,
+          "unique": false,
+          "isId": true
+        },
+        {
+          "name": "Cargo",
+          "type": "String",
+          "nullable": false,
+          "unique": false,
+          "isId": false
+        },
+        {
+          "name": "FechaIngreso",
+          "type": "LocalDate",
+          "nullable": false,
+          "unique": false,
+          "isId": false
+        }
+      ],
+      "methods": [],
+      "position": {
+        "x": -193,
+        "y": 486
+      },
+      "width": 200,
+      "height": 100
+    },
+    {
+      "id": "class-1762788008427-uv8js4",
+      "name": "PERSONA",
+      "attributes": [
+        {
+          "name": "id",
+          "type": "Integer",
+          "nullable": false,
+          "unique": false,
+          "isId": false
+        },
+        {
+          "name": "Nombre",
+          "type": "String",
+          "nullable": false,
+          "unique": false,
+          "isId": false
+        },
+        {
+          "name": "telefono",
+          "type": "String",
+          "nullable": false,
+          "unique": false,
+          "isId": false
+        }
+      ],
+      "methods": [],
+      "position": {
+        "x": -536,
+        "y": 300
+      },
+      "width": 200,
+      "height": 100
+    }
+  ],
+  "relations": [
+    {
+      "id": "rel_mhtaejuksagf",
+      "type": "ONE_TO_MANY",
+      "source": "PRODUCTO",
+      "target": "PRODUCTO_VENTA_DETALLE",
+      "sourceCardinality": "1..*",
+      "targetCardinality": "0..*"
+    },
+    {
+      "id": "rel_mhtaejukew3e",
+      "type": "ONE_TO_MANY",
+      "source": "VENTA",
+      "target": "PRODUCTO_VENTA_DETALLE",
+      "sourceCardinality": "1..*",
+      "targetCardinality": "0..*"
+    },
+    {
+      "id": "relacion-1762787920234",
+      "type": "COMPOSITION",
+      "source": "FACTURA",
+      "target": "VENTA",
+      "sourceCardinality": "1",
+      "targetCardinality": "1..*"
+    },
+    {
+      "id": "relacion-1762787974110",
+      "type": "AGGREGATION",
+      "source": "PRODUCTO",
+      "target": "CATEGORIA",
+      "sourceCardinality": "1",
+      "targetCardinality": "0..*"
+    },
+    {
+      "id": "relacion-1762788148394",
+      "type": "ONE_TO_MANY",
+      "source": "CLIENTE",
+      "target": "VENTA",
+      "sourceCardinality": "1",
+      "targetCardinality": "1..*"
+    },
+    {
+      "id": "relacion-1762788172657",
+      "type": "ONE_TO_MANY",
+      "source": "EMLEADO",
+      "target": "VENTA",
+      "sourceCardinality": "1",
+      "targetCardinality": "1..*"
+    },
+    {
+      "id": "relacion-1762788184909",
+      "type": "INHERITANCE",
+      "source": "EMLEADO",
+      "target": "PERSONA",
+      "sourceCardinality": "1",
+      "targetCardinality": "1"
+    },
+    {
+      "id": "relacion-1762788197630",
+      "type": "INHERITANCE",
+      "source": "CLIENTE",
+      "target": "PERSONA",
+      "sourceCardinality": "1",
+      "targetCardinality": "1"
+    }
+  ]
+}

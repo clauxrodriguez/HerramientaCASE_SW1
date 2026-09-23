@@ -1,0 +1,405 @@
+{
+  "package": "com.ecommerce",
+  "classes": [
+    {
+      "name": "User",
+      "attributes": [
+        {
+          "name": "id",
+          "type": "Long",
+          "isId": true
+        },
+        {
+          "name": "username",
+          "type": "String",
+          "nullable": false
+        },
+        {
+          "name": "email",
+          "type": "String",
+          "unique": true
+        },
+        {
+          "name": "password",
+          "type": "String",
+          "nullable": false
+        },
+        {
+          "name": "firstName",
+          "type": "String",
+          "nullable": false
+        },
+        {
+          "name": "lastName",
+          "type": "String",
+          "nullable": false
+        },
+        {
+          "name": "isActive",
+          "type": "Boolean",
+          "nullable": false
+        },
+        {
+          "name": "createdAt",
+          "type": "LocalDateTime",
+          "nullable": false
+        },
+        {
+          "name": "updatedAt",
+          "type": "LocalDateTime",
+          "nullable": false
+        }
+      ],
+      "methods": [
+        {
+          "name": "save",
+          "returnType": "void",
+          "parameters": []
+        },
+        {
+          "name": "findByEmail",
+          "returnType": "User",
+          "parameters": [
+            {
+              "name": "email",
+              "type": "String"
+            }
+          ]
+        },
+        {
+          "name": "isValidPassword",
+          "returnType": "Boolean",
+          "parameters": [
+            {
+              "name": "password",
+              "type": "String"
+            }
+          ]
+        }
+      ],
+      "relations": [
+        {
+          "type": "ONE_TO_MANY",
+          "target": "Order",
+          "mappedBy": "user"
+        },
+        {
+          "type": "ONE_TO_MANY",
+          "target": "Address",
+          "mappedBy": "user"
+        }
+      ]
+    },
+    {
+      "name": "Order",
+      "attributes": [
+        {
+          "name": "id",
+          "type": "Long",
+          "isId": true
+        },
+        {
+          "name": "orderNumber",
+          "type": "String",
+          "unique": true,
+          "nullable": false
+        },
+        {
+          "name": "orderDate",
+          "type": "LocalDateTime",
+          "nullable": false
+        },
+        {
+          "name": "totalAmount",
+          "type": "BigDecimal",
+          "nullable": false
+        },
+        {
+          "name": "status",
+          "type": "String",
+          "nullable": false
+        },
+        {
+          "name": "shippingAddress",
+          "type": "String",
+          "nullable": false
+        },
+        {
+          "name": "createdAt",
+          "type": "LocalDateTime",
+          "nullable": false
+        },
+        {
+          "name": "updatedAt",
+          "type": "LocalDateTime",
+          "nullable": false
+        }
+      ],
+      "methods": [
+        {
+          "name": "calculateTotal",
+          "returnType": "BigDecimal",
+          "parameters": []
+        },
+        {
+          "name": "addOrderItem",
+          "returnType": "void",
+          "parameters": [
+            {
+              "name": "orderItem",
+              "type": "OrderItem"
+            }
+          ]
+        },
+        {
+          "name": "updateStatus",
+          "returnType": "void",
+          "parameters": [
+            {
+              "name": "status",
+              "type": "String"
+            }
+          ]
+        }
+      ],
+      "relations": [
+        {
+          "type": "MANY_TO_ONE",
+          "target": "User",
+          "joinColumn": "user_id"
+        },
+        {
+          "type": "ONE_TO_MANY",
+          "target": "OrderItem",
+          "mappedBy": "order"
+        }
+      ]
+    },
+    {
+      "name": "Product",
+      "attributes": [
+        {
+          "name": "id",
+          "type": "Long",
+          "isId": true
+        },
+        {
+          "name": "name",
+          "type": "String",
+          "nullable": false
+        },
+        {
+          "name": "description",
+          "type": "String"
+        },
+        {
+          "name": "price",
+          "type": "BigDecimal",
+          "nullable": false
+        },
+        {
+          "name": "sku",
+          "type": "String",
+          "unique": true,
+          "nullable": false
+        },
+        {
+          "name": "stockQuantity",
+          "type": "Integer",
+          "nullable": false
+        },
+        {
+          "name": "isActive",
+          "type": "Boolean",
+          "nullable": false
+        },
+        {
+          "name": "createdAt",
+          "type": "LocalDateTime",
+          "nullable": false
+        },
+        {
+          "name": "updatedAt",
+          "type": "LocalDateTime",
+          "nullable": false
+        }
+      ],
+      "methods": [
+        {
+          "name": "updateStock",
+          "returnType": "void",
+          "parameters": [
+            {
+              "name": "quantity",
+              "type": "Integer"
+            }
+          ]
+        },
+        {
+          "name": "isInStock",
+          "returnType": "Boolean",
+          "parameters": []
+        },
+        {
+          "name": "calculateDiscount",
+          "returnType": "BigDecimal",
+          "parameters": [
+            {
+              "name": "discountPercent",
+              "type": "BigDecimal"
+            }
+          ]
+        }
+      ],
+      "relations": [
+        {
+          "type": "ONE_TO_MANY",
+          "target": "OrderItem",
+          "mappedBy": "product"
+        },
+        {
+          "type": "MANY_TO_ONE",
+          "target": "Category",
+          "joinColumn": "category_id"
+        }
+      ]
+    },
+    {
+      "name": "OrderItem",
+      "attributes": [
+        {
+          "name": "id",
+          "type": "Long",
+          "isId": true
+        },
+        {
+          "name": "quantity",
+          "type": "Integer",
+          "nullable": false
+        },
+        {
+          "name": "unitPrice",
+          "type": "BigDecimal",
+          "nullable": false
+        },
+        {
+          "name": "totalPrice",
+          "type": "BigDecimal",
+          "nullable": false
+        }
+      ],
+      "methods": [
+        {
+          "name": "calculateTotal",
+          "returnType": "BigDecimal",
+          "parameters": []
+        }
+      ],
+      "relations": [
+        {
+          "type": "MANY_TO_ONE",
+          "target": "Order",
+          "joinColumn": "order_id"
+        },
+        {
+          "type": "MANY_TO_ONE",
+          "target": "Product",
+          "joinColumn": "product_id"
+        }
+      ]
+    },
+    {
+      "name": "Category",
+      "attributes": [
+        {
+          "name": "id",
+          "type": "Long",
+          "isId": true
+        },
+        {
+          "name": "name",
+          "type": "String",
+          "nullable": false
+        },
+        {
+          "name": "description",
+          "type": "String"
+        },
+        {
+          "name": "isActive",
+          "type": "Boolean",
+          "nullable": false
+        }
+      ],
+      "methods": [
+        {
+          "name": "getActiveProducts",
+          "returnType": "List<Product>",
+          "parameters": []
+        }
+      ],
+      "relations": [
+        {
+          "type": "ONE_TO_MANY",
+          "target": "Product",
+          "mappedBy": "category"
+        }
+      ]
+    },
+    {
+      "name": "Address",
+      "attributes": [
+        {
+          "name": "id",
+          "type": "Long",
+          "isId": true
+        },
+        {
+          "name": "street",
+          "type": "String",
+          "nullable": false
+        },
+        {
+          "name": "city",
+          "type": "String",
+          "nullable": false
+        },
+        {
+          "name": "state",
+          "type": "String",
+          "nullable": false
+        },
+        {
+          "name": "zipCode",
+          "type": "String",
+          "nullable": false
+        },
+        {
+          "name": "country",
+          "type": "String",
+          "nullable": false
+        },
+        {
+          "name": "isDefault",
+          "type": "Boolean",
+          "nullable": false
+        }
+      ],
+      "methods": [
+        {
+          "name": "getFullAddress",
+          "returnType": "String",
+          "parameters": []
+        }
+      ],
+      "relations": [
+        {
+          "type": "MANY_TO_ONE",
+          "target": "User",
+          "joinColumn": "user_id"
+        }
+      ]
+    }
+  ]
+}
+
