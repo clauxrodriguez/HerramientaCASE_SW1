@@ -15,11 +15,14 @@ import { initializeDatabase, closeDatabase } from './db/connection';
 dotenv.config({ path: path.resolve(__dirname, "../.env") });
 console.log("OPENAI_API_KEY cargada:", !!process.env.OPENAI_API_KEY);
 
+// ✅ Configuración flexible de CORS para Render / Local
+const allowedOrigin = process.env.CORS_ORIGIN || process.env.CLIENT_URL || "*";
+
 const app = express();
 const server = createServer(app);
 const io = new Server(server, {
   cors: {
-    origin: process.env.CORS_ORIGIN || "http://localhost:5173",
+    origin: allowedOrigin,
     methods: ["GET", "POST"]
   }
 });
@@ -31,7 +34,7 @@ app.use(helmet({
   contentSecurityPolicy: false, // Disable CSP for development
 }));
 app.use(cors({
-  origin: process.env.CORS_ORIGIN || "http://localhost:5173",
+  origin: allowedOrigin,
   credentials: true
 }));
 app.use(morgan('combined'));
