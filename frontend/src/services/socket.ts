@@ -42,7 +42,11 @@ export const initSocket = (diagramId: string, token: string) => {
   }
 
   currentDiagramId = diagramId;
-  const wsUrl = import.meta.env.VITE_WS_URL || 'http://localhost:3001';
+  const wsUrl = 
+  import.meta.env.VITE_WS_URL || 
+  import.meta.env.VITE_SOCKET_URL || 
+  import.meta.env.VITE_API_URL || 
+  'http://localhost:3001';
 
   socket = io(`${wsUrl}/diagram`, {
     auth: { token },
