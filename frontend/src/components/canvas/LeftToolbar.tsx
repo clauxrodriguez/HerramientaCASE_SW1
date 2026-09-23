@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+import React, { useRef, useState } from 'react';
 import { 
   MousePointer, 
   PlusSquare, 
@@ -8,6 +8,7 @@ import {
   FileCode, 
   Database, 
   Save, 
+  Check,
   Wifi, 
   WifiOff, 
   RefreshCw,
@@ -20,6 +21,8 @@ import { codeGeneratorService, xmiService } from '../../services/api';
 export const LeftToolbar: React.FC<{
   onOpenSQLModal: (sql: string) => void;
 }> = ({ onOpenSQLModal }) => {
+  const [isSaved, setIsSaved] = useState(false);
+
   const { 
     classes, 
     relations, 
@@ -32,10 +35,17 @@ export const LeftToolbar: React.FC<{
     syncQueue, 
     clearSyncQueue,
     projectName,
-    packageName
+    packageName,
+    saveProjectState
   } = useUMLStore();
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleSaveState = () => {
+    saveProjectState();
+    setIsSaved(true);
+    setTimeout(() => setIsSaved(false), 2000);
+  };
 
   const handleAddNewClass = () => {
     const newClassId = `cls-${Date.now()}`;
@@ -180,7 +190,7 @@ export const LeftToolbar: React.FC<{
           {/* Sección de Intercambio XML / XMI */}
           <div className="space-y-1.5 pt-2 border-t border-surface-border">
             <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider px-2">
-              Intercambio XML / XMI
+              Intercambio XML
             </span>
             <div className="space-y-1">
               <button
@@ -242,8 +252,17 @@ export const LeftToolbar: React.FC<{
 
       {/* Footer / Botón Guardar */}
       <div className="p-3 border-t border-surface-border bg-surface-bg">
-        <button className="w-full py-2 bg-brand-600 hover:bg-brand-700 text-white font-medium text-xs rounded-lg flex items-center justify-center gap-2 shadow-sm transition">
-          <Save className="w-4 h-4" /> Guardar Estado
+        <button
+          onClick={handleSaveState}
+          className={`w-full py-2 font-medium text-xs rounded-lg flex items-center justify-center gap-2 shadow-sm transition ${
+            isSaved
+              ? 'bg-emerald-600 text-white'
+              : 'bg-brand-600 hover:bg-brand-700 text-white'
+          }`}
+          title="Guardar el estado actual del diagrama en la memoria local"
+        >
+          {isSaved ? <Check className="w-4 h-4 animate-bounce" /> : <Save className="w-4 h-4" />}
+          {isSaved ? '¡Estado Guardado!' : 'Guardar Estado'}
         </button>
       </div>
     </aside>

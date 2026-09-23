@@ -11,10 +11,9 @@ systemctl enable docker
 
 echo "📦 Clonando repositorio..."
 cd /root
-rm -rf PRIMER-PARCIAL-SW
-git clone https://github.com/Sebastian-M-C/PRIMER-PARCIAL-SW.git
-cd PRIMER-PARCIAL-SW
-git checkout segundo-parcial
+rm -rf HerramientaCASE_SW1
+git clone https://github.com/clauxrodriguez/HerramientaCASE_SW1.git
+cd HerramientaCASE_SW1
 
 echo "🔑 Configurando variables de entorno..."
 # Las claves sensibles NO deben almacenarse en el repo.

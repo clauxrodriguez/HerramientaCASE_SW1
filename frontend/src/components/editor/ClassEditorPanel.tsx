@@ -114,94 +114,97 @@ export const ClassEditorPanel: React.FC = () => {
 
           {/* Lista de Atributos Existentes */}
           <div className="space-y-2">
-            {selectedClass.attributes.map((attr) => (
-              <div
-                key={attr.id}
-                className={`flex flex-col gap-1.5 p-2.5 border rounded-xl transition ${
-                  attr.isPrimaryKey
-                    ? 'border-brand-300 bg-brand-50/50'
-                    : 'border-surface-border bg-surface-bg'
-                }`}
-              >
-                <div className="flex items-center gap-1.5 text-xs">
-                  {/* Visibilidad */}
-                  <select
-                    value={attr.visibility}
-                    onChange={(e) =>
-                      updateAttribute(selectedClass.id, attr.id, { visibility: e.target.value as Visibility })
-                    }
-                    className="bg-white border border-surface-border rounded px-1 text-xs font-mono font-bold"
-                  >
-                    <option value="+">+</option>
-                    <option value="-">-</option>
-                    <option value="#">#</option>
-                  </select>
-
-                  {/* Nombre */}
-                  <input
-                    type="text"
-                    value={attr.name}
-                    onChange={(e) => updateAttribute(selectedClass.id, attr.id, { name: e.target.value })}
-                    className="w-1/3 px-1.5 py-1 border border-surface-border rounded bg-white text-xs font-medium"
-                    placeholder="nombre"
-                  />
-
-                  {/* Menú Desplegable de Tipo de Dato */}
-                  <select
-                    value={COMMON_DATA_TYPES.includes(attr.type as any) ? attr.type : 'Otro'}
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      if (val !== 'Otro') {
-                        updateAttribute(selectedClass.id, attr.id, { type: val });
+            {selectedClass.attributes.map((attr, idx) => {
+              const attrId = attr.id || `attr-${idx}`;
+              return (
+                <div
+                  key={attrId}
+                  className={`flex flex-col gap-1.5 p-2.5 border rounded-xl transition ${
+                    attr.isPrimaryKey
+                      ? 'border-brand-300 bg-brand-50/50'
+                      : 'border-surface-border bg-surface-bg'
+                  }`}
+                >
+                  <div className="flex items-center gap-1.5 text-xs">
+                    {/* Visibilidad */}
+                    <select
+                      value={attr.visibility}
+                      onChange={(e) =>
+                        updateAttribute(selectedClass.id, attrId, { visibility: e.target.value as Visibility })
                       }
-                    }}
-                    className="w-1/3 px-1 py-1 border border-surface-border rounded bg-white text-xs font-medium text-slate-700"
-                  >
-                    {COMMON_DATA_TYPES.map((t) => (
-                      <option key={t} value={t}>
-                        {t}
-                      </option>
-                    ))}
-                    <option value="Otro">Personalizado</option>
-                  </select>
+                      className="bg-white border border-surface-border rounded px-1 text-xs font-mono font-bold"
+                    >
+                      <option value="+">+</option>
+                      <option value="-">-</option>
+                      <option value="#">#</option>
+                    </select>
 
-                  <button
-                    onClick={() => removeAttribute(selectedClass.id, attr.id)}
-                    className="text-slate-400 hover:text-red-500 ml-auto"
-                    title="Eliminar atributo"
-                  >
-                    &times;
-                  </button>
+                    {/* Nombre */}
+                    <input
+                      type="text"
+                      value={attr.name}
+                      onChange={(e) => updateAttribute(selectedClass.id, attrId, { name: e.target.value })}
+                      className="w-1/3 px-1.5 py-1 border border-surface-border rounded bg-white text-xs font-medium"
+                      placeholder="nombre"
+                    />
+
+                    {/* Menú Desplegable de Tipo de Dato */}
+                    <select
+                      value={COMMON_DATA_TYPES.includes(attr.type as any) ? attr.type : 'Otro'}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        if (val !== 'Otro') {
+                          updateAttribute(selectedClass.id, attrId, { type: val });
+                        }
+                      }}
+                      className="w-1/3 px-1 py-1 border border-surface-border rounded bg-white text-xs font-medium text-slate-700"
+                    >
+                      {COMMON_DATA_TYPES.map((t) => (
+                        <option key={t} value={t}>
+                          {t}
+                        </option>
+                      ))}
+                      <option value="Otro">Personalizado</option>
+                    </select>
+
+                    <button
+                      onClick={() => removeAttribute(selectedClass.id, attrId)}
+                      className="text-slate-400 hover:text-red-500 ml-auto"
+                      title="Eliminar atributo"
+                    >
+                      &times;
+                    </button>
+                  </div>
+
+                  {/* Si seleccionó tipo personalizado */}
+                  {!COMMON_DATA_TYPES.includes(attr.type as any) && (
+                    <input
+                      type="text"
+                      value={attr.type}
+                      onChange={(e) => updateAttribute(selectedClass.id, attrId, { type: e.target.value })}
+                      className="w-full text-[11px] px-2 py-0.5 border border-surface-border rounded bg-white text-slate-600"
+                      placeholder="Tipo personalizado (ej. List<String>)"
+                    />
+                  )}
+
+                  {/* Checkbox de Llave Primaria (PK) */}
+                  <label className="flex items-center gap-1.5 text-[11px] font-medium text-slate-700 cursor-pointer pt-0.5">
+                    <input
+                      type="checkbox"
+                      checked={attr.isPrimaryKey || false}
+                      onChange={(e) =>
+                        updateAttribute(selectedClass.id, attrId, { isPrimaryKey: e.target.checked })
+                      }
+                      className="rounded border-surface-border text-brand-600 focus:ring-brand-400"
+                    />
+                    <span className="flex items-center gap-1">
+                      <Key className={`w-3 h-3 ${attr.isPrimaryKey ? 'text-brand-600' : 'text-slate-400'}`} />
+                      Llave Primaria (PK)
+                    </span>
+                  </label>
                 </div>
-
-                {/* Si seleccionó tipo personalizado */}
-                {!COMMON_DATA_TYPES.includes(attr.type as any) && (
-                  <input
-                    type="text"
-                    value={attr.type}
-                    onChange={(e) => updateAttribute(selectedClass.id, attr.id, { type: e.target.value })}
-                    className="w-full text-[11px] px-2 py-0.5 border border-surface-border rounded bg-white text-slate-600"
-                    placeholder="Tipo personalizado (ej. List<String>)"
-                  />
-                )}
-
-                {/* Checkbox de Llave Primaria (PK) */}
-                <label className="flex items-center gap-1.5 text-[11px] font-medium text-slate-700 cursor-pointer pt-0.5">
-                  <input
-                    type="checkbox"
-                    checked={attr.isPrimaryKey || false}
-                    onChange={(e) =>
-                      updateAttribute(selectedClass.id, attr.id, { isPrimaryKey: e.target.checked })
-                    }
-                    className="rounded border-surface-border text-brand-600 focus:ring-brand-400"
-                  />
-                  <span className="flex items-center gap-1">
-                    <Key className={`w-3 h-3 ${attr.isPrimaryKey ? 'text-brand-600' : 'text-slate-400'}`} />
-                    Llave Primaria (PK)
-                  </span>
-                </label>
-              </div>
-            ))}
+              );
+            })}
           </div>
 
           {/* Formulario Agregar Nuevo Atributo */}
@@ -279,45 +282,48 @@ export const ClassEditorPanel: React.FC = () => {
           </div>
 
           <div className="space-y-2">
-            {selectedClass.methods.map((meth) => (
-              <div
-                key={meth.id}
-                className="flex items-center gap-2 p-2 border border-surface-border rounded-lg bg-surface-bg text-xs"
-              >
-                <select
-                  value={meth.visibility}
-                  onChange={(e) =>
-                    updateMethod(selectedClass.id, meth.id, { visibility: e.target.value as Visibility })
-                  }
-                  className="bg-white border border-surface-border rounded px-1 text-xs font-mono font-bold"
+            {selectedClass.methods.map((meth, idx) => {
+              const methId = meth.id || `meth-${idx}`;
+              return (
+                <div
+                  key={methId}
+                  className="flex items-center gap-2 p-2 border border-surface-border rounded-lg bg-surface-bg text-xs"
                 >
-                  <option value="+">+</option>
-                  <option value="-">-</option>
-                  <option value="#">#</option>
-                </select>
+                  <select
+                    value={meth.visibility}
+                    onChange={(e) =>
+                      updateMethod(selectedClass.id, methId, { visibility: e.target.value as Visibility })
+                    }
+                    className="bg-white border border-surface-border rounded px-1 text-xs font-mono font-bold"
+                  >
+                    <option value="+">+</option>
+                    <option value="-">-</option>
+                    <option value="#">#</option>
+                  </select>
 
-                <input
-                  type="text"
-                  value={meth.name}
-                  onChange={(e) => updateMethod(selectedClass.id, meth.id, { name: e.target.value })}
-                  className="w-1/2 px-1.5 py-0.5 border border-surface-border rounded bg-white text-xs font-medium"
-                />
+                  <input
+                    type="text"
+                    value={meth.name}
+                    onChange={(e) => updateMethod(selectedClass.id, methId, { name: e.target.value })}
+                    className="w-1/2 px-1.5 py-0.5 border border-surface-border rounded bg-white text-xs font-medium"
+                  />
 
-                <input
-                  type="text"
-                  value={meth.returnType}
-                  onChange={(e) => updateMethod(selectedClass.id, meth.id, { returnType: e.target.value })}
-                  className="w-1/2 px-1.5 py-0.5 border border-surface-border rounded bg-white text-xs text-slate-600"
-                />
+                  <input
+                    type="text"
+                    value={meth.returnType}
+                    onChange={(e) => updateMethod(selectedClass.id, methId, { returnType: e.target.value })}
+                    className="w-1/2 px-1.5 py-0.5 border border-surface-border rounded bg-white text-xs text-slate-600"
+                  />
 
-                <button
-                  onClick={() => removeMethod(selectedClass.id, meth.id)}
-                  className="text-slate-400 hover:text-red-500"
-                >
-                  &times;
-                </button>
-              </div>
-            ))}
+                  <button
+                    onClick={() => removeMethod(selectedClass.id, methId)}
+                    className="text-slate-400 hover:text-red-500"
+                  >
+                    &times;
+                  </button>
+                </div>
+              );
+            })}
           </div>
 
           {/* Agregar Nuevo Método */}

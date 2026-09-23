@@ -28,47 +28,61 @@ export const ProjectDashboard: React.FC<{ onOpenProject: (projectId: string) => 
 
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteRole, setInviteRole] = useState<'editor' | 'viewer'>('editor');
+  const [selectedInviteProj, setSelectedInviteProj] = useState<Project | null>(null);
 
   const { user, openProfileModal } = useAuthStore();
-  const setProjectInfo = useUMLStore((s) => s.setProjectInfo);
+  const loadProjectState = useUMLStore((s) => s.loadProjectState);
 
-  const [projects, setProjects] = useState<Project[]>([
-    {
-      id: 'demo-project-1',
-      name: 'Sistema de Comercio Electrónico',
-      package: 'com.ecommerce.app',
-      description: 'Modelo de clases principal para la tienda online con usuarios, pedidos y pagos.',
-      updatedAt: 'Hace 20 min',
-      diagram: {
-        id: 'diag-1',
-        name: 'E-Commerce Core',
+  const [projects, setProjects] = useState<Project[]>(() => {
+    const raw = localStorage.getItem('uml_projects_list');
+    if (raw) {
+      try {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      } catch (err) {
+        console.error('Error al cargar lista de proyectos:', err);
+      }
+    }
+    const initialList: Project[] = [
+      {
+        id: 'demo-project-1',
+        name: 'Sistema de Comercio Electrónico',
         package: 'com.ecommerce.app',
-        classes: [],
-        relations: [],
+        description: 'Modelo de clases principal para la tienda online con usuarios, pedidos y pagos.',
+        updatedAt: 'Hace 20 min',
+        diagram: {
+          id: 'diag-1',
+          name: 'E-Commerce Core',
+          package: 'com.ecommerce.app',
+          classes: [],
+          relations: [],
+        },
+        collaborators: [
+          { user: { id: 'u1', username: 'Ana María', email: 'ana@empresa.com' }, role: 'owner' },
+          { user: { id: 'u2', username: 'Carlos R.', email: 'carlos@empresa.com' }, role: 'editor' },
+        ],
       },
-      collaborators: [
-        { user: { id: 'u1', username: 'Ana María', email: 'ana@empresa.com' }, role: 'owner' },
-        { user: { id: 'u2', username: 'Carlos R.', email: 'carlos@empresa.com' }, role: 'editor' },
-      ],
-    },
-    {
-      id: 'demo-project-2',
-      name: 'Gestión Hospitalaria & Citas',
-      package: 'org.hospital.core',
-      description: 'Plataforma para reservas de citas médicas e historias clínicas.',
-      updatedAt: 'Ayer',
-      diagram: {
-        id: 'diag-2',
-        name: 'Hospital Core',
+      {
+        id: 'demo-project-2',
+        name: 'Gestión Hospitalaria & Citas',
         package: 'org.hospital.core',
-        classes: [],
-        relations: [],
+        description: 'Plataforma para reservas de citas médicas e historias clínicas.',
+        updatedAt: 'Ayer',
+        diagram: {
+          id: 'diag-2',
+          name: 'Hospital Core',
+          package: 'org.hospital.core',
+          classes: [],
+          relations: [],
+        },
+        collaborators: [
+          { user: { id: 'u1', username: 'Ana María', email: 'ana@empresa.com' }, role: 'owner' },
+        ],
       },
-      collaborators: [
-        { user: { id: 'u1', username: 'Ana María', email: 'ana@empresa.com' }, role: 'owner' },
-      ],
-    },
-  ]);
+    ];
+    localStorage.setItem('uml_projects_list', JSON.stringify(initialList));
+    return initialList;
+  });
 
   const filteredProjects = projects.filter(
     (p) =>
@@ -94,15 +108,18 @@ export const ProjectDashboard: React.FC<{ onOpenProject: (projectId: string) => 
         classes: [],
         relations: [],
       },
-      collaborators: [{ user: user!, role: 'owner' }],
+      collaborators: [{ user: user || { id: 'u1', username: 'Usuario', email: 'user@local' }, role: 'owner' }],
     };
 
-    setProjects([newProj, ...projects]);
+    const updatedList = [newProj, ...projects];
+    setProjects(updatedList);
+    localStorage.setItem('uml_projects_list', JSON.stringify(updatedList));
+
     setIsNewModalOpen(false);
     setNewProjectName('');
     setNewProjectDesc('');
-    
-    setProjectInfo(newProj.id, newProj.name, newProj.package);
+
+    loadProjectState(newProj.id, newProj.name, newProj.package, [], []);
     onOpenProject(newProj.id);
   };
 
@@ -114,20 +131,51 @@ export const ProjectDashboard: React.FC<{ onOpenProject: (projectId: string) => 
       name: `${proj.name} (Copia)`,
       updatedAt: 'Justo ahora',
     };
-    setProjects([cloned, ...projects]);
+    const updatedList = [cloned, ...projects];
+    setProjects(updatedList);
+    localStorage.setItem('uml_projects_list', JSON.stringify(updatedList));
   };
 
   const handleDeleteProject = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
     if (confirm('¿Estás seguro de que deseas eliminar este proyecto?')) {
-      setProjects(projects.filter((p) => p.id !== id));
+      const updatedList = projects.filter((p) => p.id !== id);
+      setProjects(updatedList);
+      localStorage.setItem('uml_projects_list', JSON.stringify(updatedList));
+      localStorage.removeItem(`uml_diagram_${id}`);
     }
+  };
+
+  const handleCopyShareLink = () => {
+    if (!selectedInviteProj) return;
+    const shareUrl = `${window.location.origin}/?projectId=${selectedInviteProj.id}`;
+    navigator.clipboard.writeText(shareUrl);
+    alert(`¡Enlace directo copiado al portapapeles!\n\n${shareUrl}\n\nEnvía este enlace a tu colaborador para trabajar juntos.`);
   };
 
   const handleInviteSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!inviteEmail.trim()) return;
-    alert(`Invitación enviada a ${inviteEmail} con rol de ${inviteRole}`);
+    if (!inviteEmail.trim() || !selectedInviteProj) return;
+
+    const newCollab = {
+      user: { id: `u-${Date.now()}`, username: inviteEmail.split('@')[0], email: inviteEmail.trim() },
+      role: inviteRole,
+    };
+
+    const updatedProjects = projects.map((p) => {
+      if (p.id === selectedInviteProj.id) {
+        return {
+          ...p,
+          collaborators: [...p.collaborators, newCollab],
+        };
+      }
+      return p;
+    });
+
+    setProjects(updatedProjects);
+    localStorage.setItem('uml_projects_list', JSON.stringify(updatedProjects));
+
+    alert(`✅ Invitación enviada a ${inviteEmail} con rol de ${inviteRole === 'editor' ? 'Editor' : 'Lector'}. ¡Ya figura como colaborador!`);
     setInviteEmail('');
     setIsInviteModalOpen(false);
   };
@@ -185,7 +233,7 @@ export const ProjectDashboard: React.FC<{ onOpenProject: (projectId: string) => 
             <div
               key={proj.id}
               onClick={() => {
-                setProjectInfo(proj.id, proj.name, proj.package);
+                loadProjectState(proj.id, proj.name, proj.package, proj.diagram?.classes, proj.diagram?.relations);
                 onOpenProject(proj.id);
               }}
               className="bg-white border border-surface-border rounded-xl p-5 hover:shadow-floating hover:border-brand-300 transition cursor-pointer flex flex-col justify-between group space-y-4"
@@ -199,6 +247,7 @@ export const ProjectDashboard: React.FC<{ onOpenProject: (projectId: string) => 
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
+                        setSelectedInviteProj(proj);
                         setIsInviteModalOpen(true);
                       }}
                       className="p-1.5 text-surface-subtext hover:bg-surface-panel hover:text-brand-600 rounded-md transition"
@@ -271,11 +320,10 @@ export const ProjectDashboard: React.FC<{ onOpenProject: (projectId: string) => 
               </div>
 
               <div className="space-y-1">
-                <label className="font-semibold text-slate-700">Paquete Java (Package)</label>
+                <label className="font-semibold text-slate-700">Paquete Base / Package (Opcional)</label>
                 <input
                   type="text"
-                  required
-                  placeholder="com.miempresa.modulo"
+                  placeholder="com.miempresa.modulo (opcional)"
                   value={newProjectPkg}
                   onChange={(e) => setNewProjectPkg(e.target.value)}
                   className="w-full px-3 py-2 border border-surface-border rounded-lg focus:ring-2 focus:ring-brand-400 focus:outline-none font-mono"
@@ -316,11 +364,34 @@ export const ProjectDashboard: React.FC<{ onOpenProject: (projectId: string) => 
       {isInviteModalOpen && (
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-floating space-y-4">
-            <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
-              <UserPlus className="w-5 h-5 text-brand-600" /> Invitar Colaborador por Email
-            </h3>
+            <div>
+              <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                <UserPlus className="w-5 h-5 text-brand-600" /> Invitar Colaborador
+              </h3>
+              <p className="text-xs text-surface-subtext mt-0.5">
+                Proyecto: <span className="font-semibold text-slate-800">{selectedInviteProj?.name || 'Diagrama UML'}</span>
+              </p>
+            </div>
 
-            <form onSubmit={handleInviteSubmit} className="space-y-4 text-xs">
+            {/* Opción 1: Enlace directo instantáneo */}
+            <div className="p-3 bg-brand-50/60 rounded-xl border border-brand-200 space-y-2 text-xs">
+              <div className="flex items-center justify-between">
+                <span className="font-semibold text-brand-900">Enlace Directo de Colaboración</span>
+                <button
+                  type="button"
+                  onClick={handleCopyShareLink}
+                  className="px-2.5 py-1 bg-brand-600 hover:bg-brand-700 text-white rounded-lg font-medium flex items-center gap-1 transition shadow-subtle text-[11px]"
+                >
+                  <Copy className="w-3.5 h-3.5" /> Copiar Enlace
+                </button>
+              </div>
+              <p className="text-[11px] text-brand-800 leading-relaxed">
+                Copia este enlace y envíaselo a tu colaborador. Al abrirlo se conectará inmediatamente a tu mismo lienzo en tiempo real.
+              </p>
+            </div>
+
+            <form onSubmit={handleInviteSubmit} className="space-y-4 text-xs pt-2 border-t border-surface-border">
+              <span className="font-semibold text-slate-800">O envía una invitación por correo:</span>
               <div className="space-y-1">
                 <label className="font-semibold text-slate-700">Correo Electrónico</label>
                 <input
@@ -334,14 +405,14 @@ export const ProjectDashboard: React.FC<{ onOpenProject: (projectId: string) => 
               </div>
 
               <div className="space-y-1">
-                <label className="font-semibold text-slate-700">Rol</label>
+                <label className="font-semibold text-slate-700">Rol de Permiso</label>
                 <select
                   value={inviteRole}
                   onChange={(e) => setInviteRole(e.target.value as any)}
                   className="w-full px-3 py-2 border border-surface-border rounded-lg focus:ring-2 focus:ring-brand-400 focus:outline-none"
                 >
-                  <option value="editor">Editor (Puede modificar clases y relaciones)</option>
-                  <option value="viewer">Lector (Solo vista)</option>
+                  <option value="editor">Editor (Puede modificar clases, atributos y relaciones)</option>
+                  <option value="viewer">Lector (Solo vista en vivo)</option>
                 </select>
               </div>
 

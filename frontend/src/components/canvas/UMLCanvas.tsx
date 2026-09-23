@@ -2,7 +2,7 @@ import React, { useRef, useEffect, useState } from 'react';
 import { Stage, Layer, Rect, Text, Group, Line } from 'react-konva';
 import { ZoomIn, ZoomOut, RotateCcw, Maximize2, Move } from 'lucide-react';
 import { useUMLStore } from '../../stores/useUMLStore';
-import { emitCursorMove, emitDiagramUpdate } from '../../services/socket';
+import { emitCursorMove } from '../../services/socket';
 import { UMLClass } from '../../types/uml';
 
 export const UMLCanvas: React.FC = () => {
@@ -336,7 +336,6 @@ export const UMLCanvas: React.FC = () => {
                 draggable={activeTool === 'select'}
                 onDragMove={(e) => {
                   updateClass(umlClass.id, { x: e.target.x(), y: e.target.y() });
-                  emitDiagramUpdate(projectId, { classes, relations });
                 }}
                 onClick={() => handleClassClick(umlClass)}
               >

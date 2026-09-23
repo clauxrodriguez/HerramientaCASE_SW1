@@ -16,14 +16,13 @@ interface AuthState {
   closeProfileModal: () => void;
 }
 
+const savedUser = localStorage.getItem('auth_user');
+const savedToken = localStorage.getItem('auth_token');
+
 export const useAuthStore = create<AuthState>((set) => ({
-  user: JSON.parse(localStorage.getItem('auth_user') || 'null') || {
-    id: 'usr-1',
-    username: 'Desarrollador',
-    email: 'developer@umlplatform.com'
-  },
-  token: localStorage.getItem('auth_token') || 'demo-token-123',
-  isAuthenticated: true,
+  user: savedUser ? JSON.parse(savedUser) : null,
+  token: savedToken || null,
+  isAuthenticated: !!savedUser && !!savedToken,
   isAuthModalOpen: false,
   isProfileModalOpen: false,
 

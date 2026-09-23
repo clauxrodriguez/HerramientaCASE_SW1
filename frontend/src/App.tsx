@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { 
   ArrowLeft, 
   Sparkles, 
-  User 
+  User,
+  Share2
 } from 'lucide-react';
 import { ProjectDashboard } from './components/dashboard/ProjectDashboard';
 import { LeftToolbar } from './components/canvas/LeftToolbar';
@@ -24,12 +25,21 @@ export const App: React.FC = () => {
   const [isAIDrawerOpen, setIsAIDrawerOpen] = useState(false);
   const [sqlModalContent, setSqlModalContent] = useState<string | null>(null);
 
-  const { projectId, projectName, packageName, presence, selectedRelationId } = useUMLStore();
+  const { projectId, projectName, packageName, presence, selectedRelationId, loadProjectState } = useUMLStore();
   const { token, openProfileModal } = useAuthStore();
 
   useEffect(() => {
-    if (currentView === 'workspace' && projectId && token) {
-      initSocket(projectId, token);
+    const params = new URLSearchParams(window.location.search);
+    const targetProjId = params.get('projectId');
+    if (targetProjId) {
+      loadProjectState(targetProjId);
+      setCurrentView('workspace');
+    }
+  }, [loadProjectState]);
+
+  useEffect(() => {
+    if (currentView === 'workspace' && projectId) {
+      initSocket(projectId, token || 'guest-token');
     }
     return () => {
       if (projectId) disconnectSocket(projectId);
@@ -38,6 +48,13 @@ export const App: React.FC = () => {
 
   const handleOpenProject = () => {
     setCurrentView('workspace');
+  };
+
+  const handleShareCurrentProject = () => {
+    if (!projectId) return;
+    const shareUrl = `${window.location.origin}/?projectId=${projectId}`;
+    navigator.clipboard.writeText(shareUrl);
+    alert(`¡Enlace de colaboración copiado al portapapeles!\n\nEnvía este enlace a tu colaborador para trabajar juntos en tiempo real:\n${shareUrl}`);
   };
 
   const handleOpenSQLModal = (sql: string) => {
@@ -83,6 +100,15 @@ export const App: React.FC = () => {
                 ))}
               </div>
 
+              {/* Botón Compartir Proyecto */}
+              <button
+                onClick={handleShareCurrentProject}
+                className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-brand-50 text-brand-700 hover:bg-brand-100 border border-brand-200 flex items-center gap-1.5 transition shadow-subtle"
+                title="Copiar enlace de colaboración en tiempo real"
+              >
+                <Share2 className="w-4 h-4 text-brand-600" /> Compartir
+              </button>
+
               {/* Botón Asistente IA Gemini */}
               <button
                 onClick={() => setIsAIDrawerOpen(!isAIDrawerOpen)}
@@ -92,7 +118,7 @@ export const App: React.FC = () => {
                     : 'bg-lavender-50 text-lavender-700 hover:bg-lavender-100 border border-lavender-200'
                 }`}
               >
-                <Sparkles className="w-4 h-4" /> Asistente IA Gemini
+                <Sparkles className="w-4 h-4" /> Asistente IA
               </button>
 
               {/* Perfil de Usuario */}

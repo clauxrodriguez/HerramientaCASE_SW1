@@ -1,10 +1,10 @@
 import { Server, Socket } from 'socket.io';
-import { v4 as uuidv4 } from 'uuid';
 
 interface CollaborationUser {
-  id: string;
+  id: string; // userId (persistent)
   name: string;
   color: string;
+  socketId: string; // active socket connection id
   cursor?: { x: number; y: number };
 }
 
@@ -15,26 +15,33 @@ interface CollaborationLock {
 }
 
 interface DiagramRoom {
-  users: Map<string, CollaborationUser>;
+  users: Map<string, CollaborationUser>; // Keyed by userId
   locks: Map<string, CollaborationLock>;
   diagramData?: any;
 }
 
 const rooms = new Map<string, DiagramRoom>();
 
+function generateColor(id: string): string {
+  let hash = 0;
+  for (let i = 0; i < id.length; i++) {
+    hash = (hash << 5) - hash + id.charCodeAt(i);
+    hash |= 0;
+  }
+  return `hsl(${Math.abs(hash) % 360}, 70%, 50%)`;
+}
+
 export function setupSocketHandlers(io: Server) {
   const diagramNamespace = io.of('/diagram');
 
   diagramNamespace.on('connection', (socket: Socket) => {
-    console.log(`User connected: ${socket.id}`);
+    console.log(`User socket connected: ${socket.id}`);
 
-    socket.on('diagram:join', ({ diagramId }: { diagramId: string }) => {
-      console.log(`User ${socket.id} joining diagram ${diagramId}`);
+    socket.on('diagram:join', ({ diagramId, user: userInfo }: { diagramId: string; user?: any }) => {
+      console.log(`User socket ${socket.id} joining diagram ${diagramId}`);
       
-      // Join the room
       socket.join(diagramId);
       
-      // Initialize room if it doesn't exist
       if (!rooms.has(diagramId)) {
         rooms.set(diagramId, {
           users: new Map(),
@@ -44,23 +51,27 @@ export function setupSocketHandlers(io: Server) {
       
       const room = rooms.get(diagramId)!;
       
-      // Create user
+      const userId = userInfo?.userId || userInfo?.id || socket.id;
+      const userName = userInfo?.userName || userInfo?.username || userInfo?.name || `Usuario ${socket.id.slice(0, 4)}`;
+      const userColor = userInfo?.color || generateColor(userId);
+      
       const user: CollaborationUser = {
-        id: socket.id,
-        name: `User ${socket.id.slice(0, 6)}`,
-        color: `hsl(${Math.random() * 360}, 70%, 50%)`
+        id: userId,
+        name: userName,
+        color: userColor,
+        socketId: socket.id
       };
       
-      room.users.set(socket.id, user);
+      room.users.set(userId, user);
       
-      // Notify all users in the room
       diagramNamespace.to(diagramId).emit('diagram:user-joined', user);
       diagramNamespace.to(diagramId).emit('diagram:users', Array.from(room.users.values()));
       diagramNamespace.to(diagramId).emit('diagram:locks', Array.from(room.locks.values()));
       
-      // Send current diagram data to the new user
       if (room.diagramData) {
         socket.emit('diagram:update', room.diagramData);
+      } else {
+        socket.to(diagramId).emit('diagram:request-sync');
       }
     });
 
@@ -68,7 +79,6 @@ export function setupSocketHandlers(io: Server) {
       const room = rooms.get(diagramId);
       if (room) {
         room.diagramData = diagramData;
-        // Broadcast to all users except sender
         socket.to(diagramId).emit('diagram:update', diagramData);
       }
     });
@@ -76,15 +86,19 @@ export function setupSocketHandlers(io: Server) {
     socket.on('diagram:lock', ({ diagramId, elementId }: { diagramId: string; elementId: string }) => {
       const room = rooms.get(diagramId);
       if (room) {
+        let lockUserId = socket.id;
+        for (const [uId, u] of room.users.entries()) {
+          if (u.socketId === socket.id) {
+            lockUserId = uId;
+            break;
+          }
+        }
         const lock: CollaborationLock = {
           elementId,
-          userId: socket.id,
+          userId: lockUserId,
           timestamp: Date.now()
         };
-        
         room.locks.set(elementId, lock);
-        
-        // Broadcast lock to all users
         diagramNamespace.to(diagramId).emit('diagram:lock', lock);
       }
     });
@@ -93,8 +107,6 @@ export function setupSocketHandlers(io: Server) {
       const room = rooms.get(diagramId);
       if (room) {
         room.locks.delete(elementId);
-        
-        // Broadcast unlock to all users
         diagramNamespace.to(diagramId).emit('diagram:unlock', elementId);
       }
     });
@@ -102,36 +114,41 @@ export function setupSocketHandlers(io: Server) {
     socket.on('diagram:cursor-update', ({ diagramId, cursor }: { diagramId: string; cursor: { x: number; y: number } }) => {
       const room = rooms.get(diagramId);
       if (room) {
-        const user = room.users.get(socket.id);
-        if (user) {
-          user.cursor = cursor;
-          // Broadcast cursor update to all users except sender
-          socket.to(diagramId).emit('diagram:cursor-update', { userId: socket.id, cursor });
+        for (const [userId, user] of room.users.entries()) {
+          if (user.socketId === socket.id) {
+            user.cursor = cursor;
+            socket.to(diagramId).emit('diagram:cursor-update', { userId, cursor });
+            break;
+          }
         }
       }
     });
 
     socket.on('diagram:leave', ({ diagramId }: { diagramId: string }) => {
-      console.log(`User ${socket.id} leaving diagram ${diagramId}`);
+      console.log(`User socket ${socket.id} leaving diagram ${diagramId}`);
       
       const room = rooms.get(diagramId);
       if (room) {
-        // Remove user
-        room.users.delete(socket.id);
-        
-        // Remove user's locks
-        for (const [elementId, lock] of room.locks.entries()) {
-          if (lock.userId === socket.id) {
-            room.locks.delete(elementId);
+        let leftUserId: string | null = null;
+        for (const [uId, u] of room.users.entries()) {
+          if (u.socketId === socket.id) {
+            leftUserId = uId;
+            room.users.delete(uId);
+            break;
           }
         }
         
-        // Notify remaining users
-        diagramNamespace.to(diagramId).emit('diagram:user-left', socket.id);
-        diagramNamespace.to(diagramId).emit('diagram:users', Array.from(room.users.values()));
-        diagramNamespace.to(diagramId).emit('diagram:locks', Array.from(room.locks.values()));
+        if (leftUserId) {
+          for (const [elementId, lock] of room.locks.entries()) {
+            if (lock.userId === leftUserId || lock.userId === socket.id) {
+              room.locks.delete(elementId);
+            }
+          }
+          diagramNamespace.to(diagramId).emit('diagram:user-left', leftUserId);
+          diagramNamespace.to(diagramId).emit('diagram:users', Array.from(room.users.values()));
+          diagramNamespace.to(diagramId).emit('diagram:locks', Array.from(room.locks.values()));
+        }
         
-        // Clean up empty room
         if (room.users.size === 0) {
           rooms.delete(diagramId);
         }
@@ -141,32 +158,32 @@ export function setupSocketHandlers(io: Server) {
     });
 
     socket.on('disconnect', () => {
-      console.log(`User disconnected: ${socket.id}`);
+      console.log(`User socket disconnected: ${socket.id}`);
       
-      // Remove user from all rooms
       for (const [diagramId, room] of rooms.entries()) {
-        if (room.users.has(socket.id)) {
-          room.users.delete(socket.id);
-          
-          // Remove user's locks
-          for (const [elementId, lock] of room.locks.entries()) {
-            if (lock.userId === socket.id) {
-              room.locks.delete(elementId);
+        for (const [userId, user] of room.users.entries()) {
+          if (user.socketId === socket.id) {
+            room.users.delete(userId);
+            
+            for (const [elementId, lock] of room.locks.entries()) {
+              if (lock.userId === userId || lock.userId === socket.id) {
+                room.locks.delete(elementId);
+              }
             }
-          }
-          
-          // Notify remaining users
-          diagramNamespace.to(diagramId).emit('diagram:user-left', socket.id);
-          diagramNamespace.to(diagramId).emit('diagram:users', Array.from(room.users.values()));
-          diagramNamespace.to(diagramId).emit('diagram:locks', Array.from(room.locks.values()));
-          
-          // Clean up empty room
-          if (room.users.size === 0) {
-            rooms.delete(diagramId);
+            
+            diagramNamespace.to(diagramId).emit('diagram:user-left', userId);
+            diagramNamespace.to(diagramId).emit('diagram:users', Array.from(room.users.values()));
+            diagramNamespace.to(diagramId).emit('diagram:locks', Array.from(room.locks.values()));
+            
+            if (room.users.size === 0) {
+              rooms.delete(diagramId);
+            }
+            break;
           }
         }
       }
     });
   });
 }
+
 

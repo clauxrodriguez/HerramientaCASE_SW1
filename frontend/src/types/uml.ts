@@ -60,6 +60,7 @@ export interface User {
   username: string;
   email: string;
   avatarUrl?: string;
+  color?: string;
 }
 
 export interface Project {
