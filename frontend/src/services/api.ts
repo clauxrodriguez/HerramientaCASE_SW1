@@ -1,8 +1,15 @@
 import axios, { InternalAxiosRequestConfig } from 'axios';
 import { DiagramData, UMLClass, Relation } from '../types/uml';
 
+// URL de respaldo directo a tu backend de Render
+const DEFAULT_API_URL = 'https://case-backend-1qbr.onrender.com';
+
+// Limpieza preventiva por si Render inyectó caracteres de Markdown
+const rawEnvUrl = import.meta.env.VITE_API_URL || '';
+const cleanEnvUrl = rawEnvUrl.replace(/\[\vert{}\]|\(\vert{}\)/g, '').trim();
+
 export const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || '/api',
+  baseURL: cleanEnvUrl || DEFAULT_API_URL,
   headers: {
     'Content-Type': 'application/json',
   },
@@ -27,7 +34,7 @@ export const aiService = {
   modifyDiagramFromText: async (prompt: string, currentDiagram: DiagramData) => {
     const response = await api.post('/ai/modify-diagram', {
       text: prompt,
-      diagram: currentDiagram
+      diagram: currentDiagram,
     });
     return response.data;
   },
@@ -120,45 +127,45 @@ export const codeGeneratorService = {
     });
 
     return sql;
-  }
+  },
 };
 
 export const xmiService = {
   // Exportar archivo XMI / XML completo equivalente al formato prueba.xml (OMG UML / EA 2.5)
   exportXMI: (diagram: DiagramData): string => {
     const timestamp = new Date().toISOString().replace('T', ' ').slice(0, 19);
-    
+
     let classesXml = '';
     diagram.classes.forEach((c) => {
       let attrsXml = '';
       c.attributes.forEach((a, aIdx) => {
         const vis = a.visibility === '-' ? 'private' : a.visibility === '#' ? 'protected' : 'public';
         attrsXml += `
-								<UML:Attribute name="${a.name}" visibility="${vis}">
-									<UML:ModelElement.taggedValue>
-										<UML:TaggedValue tag="type" value="${a.type}"/>
-										<UML:TaggedValue tag="position" value="${aIdx}"/>
-										<UML:TaggedValue tag="isId" value="${a.isPrimaryKey ? 'true' : 'false'}"/>
-									</UML:ModelElement.taggedValue>
-								</UML:Attribute>`;
+                <UML:Attribute name="${a.name}" visibility="${vis}">
+                  <UML:ModelElement.taggedValue>
+                    <UML:TaggedValue tag="type" value="${a.type}"/>
+                    <UML:TaggedValue tag="position" value="${aIdx}"/>
+                    <UML:TaggedValue tag="isId" value="${a.isPrimaryKey ? 'true' : 'false'}"/>
+                  </UML:ModelElement.taggedValue>
+                </UML:Attribute>`;
       });
 
       let methsXml = '';
       c.methods.forEach((m) => {
         const vis = m.visibility === '-' ? 'private' : m.visibility === '#' ? 'protected' : 'public';
         methsXml += `
-								<UML:Operation name="${m.name}" visibility="${vis}">
-									<UML:ModelElement.taggedValue>
-										<UML:TaggedValue tag="returnType" value="${m.returnType}"/>
-									</UML:ModelElement.taggedValue>
-								</UML:Operation>`;
+                <UML:Operation name="${m.name}" visibility="${vis}">
+                  <UML:ModelElement.taggedValue>
+                    <UML:TaggedValue tag="returnType" value="${m.returnType}"/>
+                  </UML:ModelElement.taggedValue>
+                </UML:Operation>`;
       });
 
       classesXml += `
-						<UML:Class name="${c.name}" xmi.id="${c.id}" visibility="public" isAbstract="${c.isAbstract ? 'true' : 'false'}">
-							<UML:Classifier.feature>${attrsXml}${methsXml}
-							</UML:Classifier.feature>
-						</UML:Class>`;
+            <UML:Class name="${c.name}" xmi.id="${c.id}" visibility="public" isAbstract="${c.isAbstract ? 'true' : 'false'}">
+              <UML:Classifier.feature>${attrsXml}${methsXml}
+              </UML:Classifier.feature>
+            </UML:Class>`;
     });
 
     let relationsXml = '';
@@ -173,7 +180,7 @@ export const xmiService = {
       const isGenericRelName = !rawRelName || rawRelName.toLowerCase().startsWith('rel');
       const relName = isGenericRelName ? '' : rawRelName;
       const nameAttr = relName ? `name="${relName}"` : 'name=""';
-      const mtTag = relName ? `\n								<UML:TaggedValue tag="mt" value="${relName}"/>` : '';
+      const mtTag = relName ? `\n               <UML:TaggedValue tag="mt" value="${relName}"/>` : '';
 
       let eaType = 'Association';
       let targetAggregation = 'none';
@@ -194,7 +201,7 @@ export const xmiService = {
         targetIsNavigable = 'true';
         sourceNavStyle = 'Navigable=Navigable;';
         targetNavStyle = 'Navigable=Unspecified;';
-        subtypeXml = '\n								<UML:TaggedValue tag="subtype" value="Strong"/>';
+        subtypeXml = '\n                <UML:TaggedValue tag="subtype" value="Strong"/>';
       } else if (relTypeStr === 'AGGREGATION') {
         eaType = 'Aggregation';
         targetAggregation = 'shared';
@@ -209,7 +216,6 @@ export const xmiService = {
         targetIsNavigable = 'true';
         targetNavStyle = 'Navigable=Navigable;';
       } else {
-        // Asociación Estándar (Sin flechas de dirección)
         eaType = 'Association';
         directionVal = 'Unspecified';
         sourceIsNavigable = 'false';
@@ -222,40 +228,40 @@ export const xmiService = {
       const tCard = r.targetCardinality || '*';
 
       relationsXml += `
-						<UML:Association ${nameAttr} xmi.id="${relId}" visibility="public" isRoot="false" isLeaf="false" isAbstract="false">
-							<UML:ModelElement.taggedValue>
-								<UML:TaggedValue tag="style" value="3"/>
-								<UML:TaggedValue tag="ea_type" value="${eaType}"/>
-								<UML:TaggedValue tag="direction" value="${directionVal}"/>
-								<UML:TaggedValue tag="linemode" value="3"/>
-								<UML:TaggedValue tag="linecolor" value="-1"/>
-								<UML:TaggedValue tag="linewidth" value="0"/>${subtypeXml}
-								<UML:TaggedValue tag="ea_sourceName" value="${sName}"/>
-								<UML:TaggedValue tag="ea_targetName" value="${tName}"/>
-								<UML:TaggedValue tag="ea_sourceType" value="Class"/>
-								<UML:TaggedValue tag="ea_targetType" value="Class"/>
-								<UML:TaggedValue tag="ea_sourceID" value="${r.sourceId}"/>
-								<UML:TaggedValue tag="ea_targetID" value="${r.targetId}"/>
-								<UML:TaggedValue tag="lb" value="${sCard}"/>${mtTag}
-								<UML:TaggedValue tag="rb" value="${tCard}"/>
-							</UML:ModelElement.taggedValue>
-							<UML:Association.connection>
-								<UML:AssociationEnd visibility="public" multiplicity="${sCard}" aggregation="none" isOrdered="false" targetScope="instance" changeable="none" isNavigable="${sourceIsNavigable}" type="${r.sourceId}">
-									<UML:ModelElement.taggedValue>
-										<UML:TaggedValue tag="containment" value="Unspecified"/>
-										<UML:TaggedValue tag="sourcestyle" value="Union=0;Derived=0;AllowDuplicates=0;Owned=0;${sourceNavStyle}"/>
-										<UML:TaggedValue tag="ea_end" value="source"/>
-									</UML:ModelElement.taggedValue>
-								</UML:AssociationEnd>
-								<UML:AssociationEnd visibility="public" multiplicity="${tCard}" aggregation="${targetAggregation}" isOrdered="false" targetScope="instance" changeable="none" isNavigable="${targetIsNavigable}" type="${r.targetId}">
-									<UML:ModelElement.taggedValue>
-										<UML:TaggedValue tag="containment" value="Unspecified"/>
-										<UML:TaggedValue tag="deststyle" value="Union=0;Derived=0;AllowDuplicates=0;Owned=0;${targetNavStyle}"/>
-										<UML:TaggedValue tag="ea_end" value="target"/>
-									</UML:ModelElement.taggedValue>
-								</UML:AssociationEnd>
-							</UML:Association.connection>
-						</UML:Association>`;
+            <UML:Association ${nameAttr} xmi.id="${relId}" visibility="public" isRoot="false" isLeaf="false" isAbstract="false">
+              <UML:ModelElement.taggedValue>
+                <UML:TaggedValue tag="style" value="3"/>
+                <UML:TaggedValue tag="ea_type" value="${eaType}"/>
+                <UML:TaggedValue tag="direction" value="${directionVal}"/>
+                <UML:TaggedValue tag="linemode" value="3"/>
+                <UML:TaggedValue tag="linecolor" value="-1"/>
+                <UML:TaggedValue tag="linewidth" value="0"/>${subtypeXml}
+                <UML:TaggedValue tag="ea_sourceName" value="${sName}"/>
+                <UML:TaggedValue tag="ea_targetName" value="${tName}"/>
+                <UML:TaggedValue tag="ea_sourceType" value="Class"/>
+                <UML:TaggedValue tag="ea_targetType" value="Class"/>
+                <UML:TaggedValue tag="ea_sourceID" value="${r.sourceId}"/>
+                <UML:TaggedValue tag="ea_targetID" value="${r.targetId}"/>
+                <UML:TaggedValue tag="lb" value="${sCard}"/>${mtTag}
+                <UML:TaggedValue tag="rb" value="${tCard}"/>
+              </UML:ModelElement.taggedValue>
+              <UML:Association.connection>
+                <UML:AssociationEnd visibility="public" multiplicity="${sCard}" aggregation="none" isOrdered="false" targetScope="instance" changeable="none" isNavigable="${sourceIsNavigable}" type="${r.sourceId}">
+                  <UML:ModelElement.taggedValue>
+                    <UML:TaggedValue tag="containment" value="Unspecified"/>
+                    <UML:TaggedValue tag="sourcestyle" value="Union=0;Derived=0;AllowDuplicates=0;Owned=0;${sourceNavStyle}"/>
+                    <UML:TaggedValue tag="ea_end" value="source"/>
+                  </UML:ModelElement.taggedValue>
+                </UML:AssociationEnd>
+                <UML:AssociationEnd visibility="public" multiplicity="${tCard}" aggregation="${targetAggregation}" isOrdered="false" targetScope="instance" changeable="none" isNavigable="${targetIsNavigable}" type="${r.targetId}">
+                  <UML:ModelElement.taggedValue>
+                    <UML:TaggedValue tag="containment" value="Unspecified"/>
+                    <UML:TaggedValue tag="deststyle" value="Union=0;Derived=0;AllowDuplicates=0;Owned=0;${targetNavStyle}"/>
+                    <UML:TaggedValue tag="ea_end" value="target"/>
+                  </UML:ModelElement.taggedValue>
+                </UML:AssociationEnd>
+              </UML:Association.connection>
+            </UML:Association>`;
     });
 
     let diagramElementsXml = '';
@@ -265,33 +271,33 @@ export const xmiService = {
       const right = left + 220;
       const bottom = top + 180;
       diagramElementsXml += `
-				<UML:DiagramElement geometry="Left=${left};Top=${top};Right=${right};Bottom=${bottom};" subject="${c.id}" seqno="${idx + 1}"/>`;
+        <UML:DiagramElement geometry="Left=${left};Top=${top};Right=${right};Bottom=${bottom};" subject="${c.id}" seqno="${idx + 1}"/>`;
     });
 
     diagram.relations.forEach((r, rIdx) => {
       const relId = r.id || `rel_${rIdx + 1}`;
       diagramElementsXml += `
-				<UML:DiagramElement geometry="SX=0;SY=0;EX=0;EY=0;EDGE=2;" subject="${relId}" style="Mode=3;"/>`;
+        <UML:DiagramElement geometry="SX=0;SY=0;EX=0;EY=0;EDGE=2;" subject="${relId}" style="Mode=3;"/>`;
     });
 
     return `<?xml version="1.0" encoding="UTF-8"?>
 <XMI xmi.version="1.1" xmlns:UML="omg.org/UML/1.4" timestamp="${timestamp}">
-	<XMI.header>
-		<XMI.documentation>
-			<XMI.exporter>Enterprise Architect CASE UML Studio</XMI.exporter>
-			<XMI.exporterVersion>2.5</XMI.exporterVersion>
-		</XMI.documentation>
-	</XMI.header>
-	<XMI.content>
-		<UML:Model name="${diagram.name}" xmi.id="MODEL_1">
-			<UML:Namespace.ownedElement>${classesXml}${relationsXml}
-			</UML:Namespace.ownedElement>
-		</UML:Model>
-		<UML:Diagram name="${diagram.name}" xmi.id="DIAGRAM_1" diagramType="ClassDiagram" toolName="Enterprise Architect 2.5">
-			<UML:Diagram.element>${diagramElementsXml}
-			</UML:Diagram.element>
-		</UML:Diagram>
-	</XMI.content>
+  <XMI.header>
+    <XMI.documentation>
+      <XMI.exporter>Enterprise Architect CASE UML Studio</XMI.exporter>
+      <XMI.exporterVersion>2.5</XMI.exporterVersion>
+    </XMI.documentation>
+  </XMI.header>
+  <XMI.content>
+    <UML:Model name="${diagram.name}" xmi.id="MODEL_1">
+      <UML:Namespace.ownedElement>${classesXml}${relationsXml}
+      </UML:Namespace.ownedElement>
+    </UML:Model>
+    <UML:Diagram name="${diagram.name}" xmi.id="DIAGRAM_1" diagramType="ClassDiagram" toolName="Enterprise Architect 2.5">
+      <UML:Diagram.element>${diagramElementsXml}
+      </UML:Diagram.element>
+    </UML:Diagram>
+  </XMI.content>
 </XMI>`;
   },
 
@@ -341,7 +347,6 @@ export const xmiService = {
           else if (rawVis === 'protected') visibility = '#';
           else if (rawVis === 'public') visibility = '+';
 
-          // Buscar tipo en taggedValues o subelementos
           let type = 'String';
           const taggedValues = Array.from(aNode.getElementsByTagName('UML:TaggedValue'));
           const typeTag = taggedValues.find((t) => t.getAttribute('tag') === 'type');
@@ -421,7 +426,6 @@ export const xmiService = {
         let sId = getTag('ea_sourceID') || classNameToIdMap.get(sName.toLowerCase()) || '';
         let tId = getTag('ea_targetID') || classNameToIdMap.get(tName.toLowerCase()) || '';
 
-        // Si no hay taggedValue con IDs directos, buscar en UML:AssociationEnd
         if (!sId || !tId) {
           const ends = Array.from(assocNode.getElementsByTagName('UML:AssociationEnd'));
           if (ends.length >= 2) {
