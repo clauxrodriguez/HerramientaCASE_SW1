@@ -11,11 +11,32 @@ export interface GeminiResponse {
   raw?: any;
 }
 
+let discoveredModel: string | null = null;
+
+async function getSupportedModel(apiKey: string, apiVersion: string): Promise<string | null> {
+  const configuredModel = process.env.GEMINI_MODEL?.trim();
+  if (configuredModel) return configuredModel.replace(/^models\//, '');
+  if (discoveredModel) return discoveredModel;
+
+  const response = await axios.get(
+    `https://generativelanguage.googleapis.com/${apiVersion}/models?key=${encodeURIComponent(apiKey)}`,
+    { timeout: 10_000 }
+  );
+  const models = (response.data?.models || [])
+    .filter((model: any) => (model.supportedGenerationMethods || []).includes('generateContent'))
+    .map((model: any) => String(model.name || '').replace(/^models\//, ''))
+    .filter(Boolean);
+  const preferred = ['gemini-2.5-flash', 'gemini-3.5-flash', 'gemini-flash-latest', 'gemini-3.8-flash'];
+  discoveredModel = preferred.find((candidate) => models.includes(candidate)) || models[0] || null;
+  return discoveredModel;
+}
+
 /**
  * Llamada a la API de Gemini usando los modelos oficiales de Google AI Studio.
  */
 export async function callGemini(opts: { prompt: string; imagePath?: string; timeoutMs?: number }): Promise<GeminiResponse> {
-  const apiKey = process.env.GEMINI_API_KEY ?? process.env.GOOGLE_API_KEY ?? process.env.OPENAI_API_KEY;
+  const apiKey = [process.env.GEMINI_API_KEY, process.env.GOOGLE_API_KEY, process.env.OPENAI_API_KEY]
+    .find((value) => Boolean(value?.trim()));
   const timeout = opts.timeoutMs ?? 15_000; // 15 segundos timeout por modelo
 
   if (!apiKey) {
@@ -25,19 +46,26 @@ export async function callGemini(opts: { prompt: string; imagePath?: string; tim
     };
   }
 
-  // Modelos oficiales soportados por la API de Google
-  const candidateModels = [
-    'gemini-1.5-flash',
-    'gemini-1.5-pro',
-    'gemini-1.5-flash-latest',
-    'gemini-2.0-flash-exp',
-    'gemini-pro-vision'
-  ];
   const apiVersion = process.env.GEMINI_API_VERSION || 'v1beta';
-  let lastErrRes: any = null;
+  let modelName: string;
 
-  for (const modelName of candidateModels) {
-    try {
+  try {
+    const supportedModel = await getSupportedModel(apiKey, apiVersion);
+    if (!supportedModel) {
+      return { normalized: null, raw: { error: 'No hay modelos Gemini con generateContent disponibles', status: 404 } };
+    }
+    modelName = supportedModel;
+  } catch (err: any) {
+    return {
+      normalized: null,
+      raw: {
+        error: err?.response?.data?.error?.message || err?.message || 'No se pudo consultar los modelos Gemini',
+        status: err?.response?.status || 500,
+      },
+    };
+  }
+
+  try {
       const endpoint = `https://generativelanguage.googleapis.com/${apiVersion}/models/${modelName}:generateContent?key=${apiKey}`;
       const parts: any[] = [{ text: opts.prompt }];
 
@@ -78,19 +106,13 @@ export async function callGemini(opts: { prompt: string; imagePath?: string; tim
           return { normalized: null, raw: { text, parseError: String(parseErr), fullResponse: raw } };
         }
       }
-    } catch (err: any) {
-      lastErrRes = err;
-      const msg = err?.response?.data?.error?.message || err?.message;
-      const code = err?.response?.status;
-      console.warn(`[Gemini] Modelo ${modelName} falló con status ${code}: ${msg}.`);
-    }
+  } catch (err: any) {
+    const msg = err?.response?.data?.error?.message || err?.message;
+    const code = err?.response?.status;
+    console.warn(`[Gemini] Modelo ${modelName} falló con status ${code}: ${msg}.`);
+    return {
+      normalized: null,
+      raw: { error: msg || 'Gemini API not available', status: code || 500, model: modelName },
+    };
   }
-
-  return {
-    normalized: null,
-    raw: {
-      error: lastErrRes?.response?.data?.error?.message || lastErrRes?.message || 'Gemini API not available',
-      status: lastErrRes?.response?.status || 500
-    }
-  };
 }

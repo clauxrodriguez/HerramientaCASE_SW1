@@ -104,6 +104,9 @@ router.post('/modify-diagram', async (req, res): Promise<void> => {
     } else {
       const actionResponse = await modifyDiagramFromText(diagram, text);
       actions = actionResponse.actions || [];
+      if (Array.isArray(actionResponse.warnings)) {
+        (req as any)._aiWarnings = actionResponse.warnings;
+      }
     }
 
     // 2) Validar acciones (recomendado: zod/AJV) - omito validación completa aquí
@@ -122,7 +125,10 @@ router.post('/modify-diagram', async (req, res): Promise<void> => {
 
     // 6) Devolver acciones y diagrama actualizado al cliente
     // además incluir warnings si el aplicador las generó
-    const warnings = (updatedDiagram && (updatedDiagram as any)._aiWarnings) || [];
+    const warnings = [
+      ...(((req as any)._aiWarnings || []) as string[]),
+      ...(((updatedDiagram && (updatedDiagram as any)._aiWarnings) || []) as string[]),
+    ];
     res.json({ actions, updatedDiagram, warnings });
   } catch (error) {
     console.error('Error modifying diagram from text:', error);

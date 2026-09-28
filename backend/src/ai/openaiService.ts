@@ -263,6 +263,7 @@ export interface UMLAction {
 
 export interface UMLActionResponse {
   actions: UMLAction[];
+  warnings?: string[];
 }
 
 export async function getAISuggestions(umlData: any): Promise<AISuggestion[]> {
@@ -471,6 +472,7 @@ export async function generateDiagramFromText(text: string): Promise<UMLDiagramR
 }
 
 export async function modifyDiagramFromText(currentDiagram: any, text: string): Promise<UMLActionResponse> {
+  let providerWarning = 'El proveedor de IA no respondió. Se utilizó el procesador local.';
   try {
     const userPrompt = `DIAGRAMA ACTUAL (JSON):\n${JSON.stringify(currentDiagram, null, 2)}\n\nINSTRUCCIÓN DEL USUARIO:\n${text}`;
 
@@ -517,12 +519,19 @@ export async function modifyDiagramFromText(currentDiagram: any, text: string): 
           console.log('✅ Acciones generadas exitosamente con Gemini API');
           return geminiRes.normalized as UMLActionResponse;
         }
+        if (geminiRes.raw?.error) {
+          providerWarning = `El proveedor de IA no respondió (${geminiRes.raw.status || 'sin estado'}): ${geminiRes.raw.error}`;
+        }
       } catch (geminiErr) {
         console.error('Error en fallback de modificación con Gemini:', geminiErr);
       }
     }
     
-    return getMockModificationActions(currentDiagram, text);
+    const fallback = getMockModificationActions(currentDiagram, text);
+    return {
+      ...fallback,
+      warnings: [providerWarning],
+    };
   }
 }
 
@@ -729,6 +738,205 @@ function getMockModificationActions(currentDiagram: any, text: string): UMLActio
   const actions: UMLAction[] = [];
   const lower = (text || '').toLowerCase().trim();
   const classesInDiagram: any[] = currentDiagram?.classes || [];
+  const compact = lower.replace(/[\s_-]+/g, '');
+  const findMentionedClass = () => classesInDiagram.find((item: any) => {
+    const className = String(item.name || '').toLowerCase();
+    return className && compact.includes(className.replace(/[\s_-]+/g, ''));
+  });
+
+  // Fallback para instrucciones completas de generación cuando el proveedor IA no responde.
+  // Ejemplo: "crea Mascota (id, nombre), Propietario (id, email) y relaciónalos".
+  const classDefinitions = Array.from(text.matchAll(/([A-ZÀ-Ý][\wÀ-ÿ]*)\s*\(([^)]+)\)/g));
+  if (classDefinitions.length >= 2) {
+    const generatedNames = classDefinitions.map((match) => match[1]);
+    const generatedClasses = classDefinitions.map((match, index) => ({
+      id: `cls-${match[1].toLowerCase()}-${Date.now()}-${index}`,
+      name: match[1],
+      attributes: match[2].split(',').map((rawAttribute, attributeIndex) => {
+        const [rawName, rawType] = rawAttribute.trim().split(/\s*:\s*/);
+        const name = rawName.trim();
+        const isId = name.toLowerCase() === 'id' || name.toLowerCase().endsWith('_id');
+        return {
+          id: `attr-${match[1].toLowerCase()}-${attributeIndex}`,
+          name,
+          type: rawType || inferAttributeType(name),
+          visibility: isId ? '-' : '+',
+          isPrimaryKey: isId,
+        };
+      }),
+      methods: [],
+      x: 80 + (index % 2) * 360,
+      y: 80 + Math.floor(index / 2) * 280,
+    }));
+
+    const generatedRelations: UMLAction[] = [];
+    for (let index = 0; index < generatedNames.length - 1; index += 1) {
+      generatedRelations.push({
+        type: 'CREATE_RELATION',
+        payload: {
+          source: generatedNames[index],
+          target: generatedNames[index + 1],
+          type: 'ONE_TO_MANY',
+          sourceCardinality: '1',
+          targetCardinality: '*',
+        },
+        reason: `Relación entre ${generatedNames[index]} y ${generatedNames[index + 1]}`,
+      });
+    }
+
+    return {
+      actions: [
+        ...generatedClasses.map((payload) => ({
+          type: 'CREATE_CLASS' as const,
+          target: { className: payload.name },
+          payload,
+          reason: `Se creó la clase ${payload.name}`,
+        })),
+        ...generatedRelations,
+      ],
+    };
+  }
+
+  const isDeleteIntent = /\b(elimina|eliminar|eliminá|borra|borrar|quita|quitar|remueve|remover)\b/.test(lower);
+  if (isDeleteIntent) {
+    if (/\b(todas?|todos?)\b/.test(lower) && /\b(clases?|calses?|tablas?|entidades?)\b/.test(lower)) {
+      return {
+        actions: classesInDiagram.map((item: any) => ({
+          type: 'DELETE_CLASS' as const,
+          target: { className: item.name },
+          reason: `Se eliminó la clase ${item.name}`,
+        })),
+      };
+    }
+
+    const targetClass = findMentionedClass();
+    const isClassDelete = /\b(clase|calse|tabla|entidad)\b/.test(lower);
+
+    if (targetClass && isClassDelete) {
+      return {
+        actions: [{
+          type: 'DELETE_CLASS',
+          target: { className: targetClass.name },
+          reason: `Se eliminó la clase ${targetClass.name}`
+        }]
+      };
+    }
+
+    if (targetClass && /\b(atributo|campo|propiedad)\b/.test(lower)) {
+      const targetAttribute = (targetClass.attributes || []).find((attribute: any) =>
+        compact.includes(String(attribute.name || '').toLowerCase().replace(/[\s_-]+/g, ''))
+      );
+      if (targetAttribute) {
+        return {
+          actions: [{
+            type: 'DELETE_ATTRIBUTE',
+            target: { className: targetClass.name, attributeName: targetAttribute.name },
+            reason: `Se eliminó el atributo ${targetAttribute.name}`
+          }]
+        };
+      }
+    }
+
+    if (targetClass && /\b(m[eé]todo|funci[oó]n|operaci[oó]n)\b/.test(lower)) {
+      const targetMethod = (targetClass.methods || []).find((method: any) =>
+        compact.includes(String(method.name || '').toLowerCase().replace(/[\s_-]+/g, ''))
+      );
+      if (targetMethod) {
+        return {
+          actions: [{
+            type: 'DELETE_METHOD',
+            target: { className: targetClass.name, methodName: targetMethod.name },
+            reason: `Se eliminó el método ${targetMethod.name}`
+          }]
+        };
+      }
+    }
+
+    return { actions: [] };
+  }
+
+  const isUpdateIntent = /\b(modifica|modificar|modificá|edita|editar|editá|actualiza|actualizar|cambia|cambiar|cambiá|renombra|renombrar)\b/.test(lower);
+  if (isUpdateIntent) {
+    const targetClass = findMentionedClass();
+
+    if (targetClass && /\b(atributo|campo|propiedad)\b/.test(lower)) {
+      const targetAttribute = (targetClass.attributes || []).find((attribute: any) =>
+        compact.includes(String(attribute.name || '').toLowerCase().replace(/[\s_-]+/g, ''))
+      );
+      if (!targetAttribute) return { actions: [] };
+
+      const renameMatch = lower.match(/(?:a|por|como)\s+([a-zA-ZÀ-ÿ][\wÀ-ÿ]*)\s*$/i);
+      const typeMatch = lower.match(/\b(?:tipo|type)\s+([a-zA-Z][\w\[\]]*)\b/i);
+      const payload: any = {};
+      if (renameMatch && !['la', 'el', 'un', 'una', 'de'].includes(renameMatch[1].toLowerCase())) {
+        payload.name = renameMatch[1];
+      }
+      if (typeMatch) payload.type = typeMatch[1];
+      if (lower.includes('privado')) payload.visibility = '-';
+      if (lower.includes('público') || lower.includes('publico')) payload.visibility = '+';
+      if (lower.includes('protegido')) payload.visibility = '#';
+      if (Object.keys(payload).length === 0) return { actions: [] };
+
+      return {
+        actions: [{
+          type: 'UPDATE_ATTRIBUTE',
+          target: { className: targetClass.name, attributeName: targetAttribute.name },
+          payload,
+          reason: `Se actualizó el atributo ${targetAttribute.name}`
+        }]
+      };
+    }
+
+    if (targetClass && /\b(m[eé]todo|funci[oó]n|operaci[oó]n)\b/.test(lower)) {
+      const targetMethod = (targetClass.methods || []).find((method: any) =>
+        compact.includes(String(method.name || '').toLowerCase().replace(/[\s_-]+/g, ''))
+      );
+      if (!targetMethod) return { actions: [] };
+
+      const renameMatch = lower.match(/(?:a|por|como)\s+([a-zA-ZÀ-ÿ][\wÀ-ÿ]*)\s*$/i);
+      const payload: any = {};
+      if (renameMatch && !['la', 'el', 'un', 'una', 'de'].includes(renameMatch[1].toLowerCase())) {
+        payload.name = renameMatch[1];
+      }
+      const returnTypeMatch = lower.match(/\b(?:retorno|retorna|devuelve|tipo)\s+([a-zA-Z][\w\[\]]*)\b/i);
+      if (returnTypeMatch) payload.returnType = returnTypeMatch[1];
+      if (lower.includes('privado')) payload.visibility = '-';
+      if (lower.includes('público') || lower.includes('publico')) payload.visibility = '+';
+      if (lower.includes('protegido')) payload.visibility = '#';
+      if (Object.keys(payload).length === 0) return { actions: [] };
+
+      return {
+        actions: [{
+          type: 'UPDATE_METHOD',
+          target: { className: targetClass.name, methodName: targetMethod.name },
+          payload,
+          reason: `Se actualizó el método ${targetMethod.name}`
+        }]
+      };
+    }
+
+    if (targetClass && /\b(clase|calse|tabla|entidad)\b/.test(lower)) {
+      const payload: any = {};
+      const renameMatch = lower.match(/(?:nombre|llamada|llamado|a)\s+([a-zA-ZÀ-ÿ][\wÀ-ÿ]*)\s*$/i);
+      if (renameMatch && !['la', 'el', 'un', 'una', 'de'].includes(renameMatch[1].toLowerCase())) {
+        payload.name = renameMatch[1];
+      }
+      if (lower.includes('abstracta') || lower.includes('abstracto')) payload.isAbstract = true;
+      if (lower.includes('concreta') || lower.includes('no abstracta')) payload.isAbstract = false;
+      if (Object.keys(payload).length === 0) return { actions: [] };
+
+      return {
+        actions: [{
+          type: 'UPDATE_CLASS',
+          target: { className: targetClass.name },
+          payload,
+          reason: `Se actualizó la clase ${targetClass.name}`
+        }]
+      };
+    }
+
+    return { actions: [] };
+  }
 
   // 1. RECONOCER INTENTO DE CREAR RELACIÓN ENTRE CLASES EXISTENTES
   const isRelationIntent = lower.includes('relacion') || lower.includes('relación') ||
@@ -821,15 +1029,15 @@ function getMockModificationActions(currentDiagram: any, text: string): UMLActio
   }
 
   // 4. HEURÍSTICA DE CREAR NUEVA CLASE (Evitando palabras reservadas de relaciones)
-  const reservedWords = ['relacion', 'relación', 'conexion', 'conexión', 'asociacion', 'asociación', 'atributo', 'campo', 'tabla', 'clase'];
-  const createClassMatch = lower.match(/(agrega|añade|crea|inserta|agregar|añadir|crear)\s+(una\s+)?(tabla\s+|clase\s+)?(\w+)/);
+  const reservedWords = ['relacion', 'relación', 'conexion', 'conexión', 'asociacion', 'asociación', 'atributo', 'campo', 'tabla', 'clase', 'modifica', 'modificar', 'modificá', 'edita', 'editar', 'editá', 'actualiza', 'actualizar', 'cambia', 'cambiar', 'cambiá', 'renombra', 'renombrar', 'elimina', 'eliminar', 'eliminá', 'borra', 'borrar', 'quita', 'quitar', 'remueve', 'remover'];
+  const createClassMatch = lower.match(/(?:agrega|añade|crea|inserta|agregar|añadir|crear)\s+(?:(?:una?|la|el)\s+)?(?:tabla|clase|entidad)\s+(?:llamada\s+|llamado\s+)?([a-zA-ZÀ-ÿ][\wÀ-ÿ]*)/i)
+    || lower.match(/(?:agrega|añade|crea|inserta|agregar|añadir|crear)\s+(?:(?:una?|la|el)\s+)?([a-zA-ZÀ-ÿ][\wÀ-ÿ]*)/i);
   if (createClassMatch) {
-    let classNameRaw = createClassMatch[4];
-    if (['tabla', 'clase', 'una', 'un'].includes(classNameRaw.toLowerCase())) {
-      const parts = lower.split(/\s+/);
-      const idx = parts.indexOf(classNameRaw.toLowerCase());
-      if (idx !== -1 && parts[idx + 1]) classNameRaw = parts[idx + 1];
-    }
+    const rawClassName = createClassMatch[1];
+    const classNameRaw = rawClassName.toLowerCase() === 'roly' &&
+      /\broly\s+(?:y\s+)?(?:relacion|conecta|vincula)/i.test(lower)
+      ? 'rol'
+      : rawClassName;
 
     if (!reservedWords.includes(classNameRaw.toLowerCase())) {
       const className = classNameRaw.charAt(0).toUpperCase() + classNameRaw.slice(1);
@@ -854,7 +1062,10 @@ function getMockModificationActions(currentDiagram: any, text: string): UMLActio
         });
 
         if (classesInDiagram.length > 0) {
-          const firstClass = classesInDiagram[0].name;
+          const relatedClass = classesInDiagram.find((item: any) =>
+            lower.includes(String(item.name || '').toLowerCase())
+          );
+          const firstClass = relatedClass?.name || classesInDiagram[0].name;
           actions.push({
             type: 'CREATE_RELATION',
             target: { sourceClassName: firstClass, targetClassName: className },

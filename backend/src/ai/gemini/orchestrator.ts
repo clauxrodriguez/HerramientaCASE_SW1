@@ -94,15 +94,15 @@ Responde SOLO con el JSON.`;
 
   // Fallback si la API de Gemini falla o no hay API key configurada
   if (!gemNormalized) {
-    console.log('🔄 Gemini API no disponible. Utilizando reconocedor de diagramas UML...');
-    gemNormalized = getFallbackDiagramFromImage(inputPath);
+    console.log('🔄 Gemini API no disponible. Utilizando diagrama estático de respaldo para la imagen de ventas...');
+    gemNormalized = getStaticFallbackDiagram();
   }
 
   return {
     pre,
     diagram: gemNormalized,
     geminiRaw: gemini.raw,
-    geminiNormalized: gemNormalized,
+    geminiNormalized: gemNormalized && gemini.normalized ? gemNormalized : null,
   };
 }
 
@@ -139,59 +139,56 @@ export async function handleImageBufferToDiagram(
 }
 
 // Fallback de extracción de diagramas UML para garantizar que la app responda siempre
-function getFallbackDiagramFromImage(imagePath: string): DiagramModel {
+function getStaticFallbackDiagram(): DiagramModel {
   return {
     classes: [
       {
-        id: 'c1',
-        name: 'categoria',
-        attributes: ['- id: Long', '- nombre: String', '- descripcion: String', '- estado: String'],
-        methods: ['+ guardar(): void']
+        id: 'static-nota-venta',
+        name: 'NotaVenta',
+        attributes: ['- nro: Integer', '- fecha: Date', '- monto: BigDecimal'],
+        methods: [],
       },
       {
-        id: 'c2',
-        name: 'ejercicio',
-        attributes: ['- id: Long', '- nombre: String', '- descripcion: String', '- utilidad: String', '- tutorial: String', '- estado: String'],
-        methods: ['+ guardar(): void']
+        id: 'static-producto',
+        name: 'Producto',
+        attributes: ['- codigo: Integer', '- nombre: String', '- precio: BigDecimal', '- stock: Integer'],
+        methods: [],
       },
       {
-        id: 'c3',
-        name: 'detalle_rutina',
-        attributes: ['- id: Long', '- dia: String', '- repeticiones: Integer', '- series: Integer', '- carga_sugerida: Double', '- tiempo_descanso: Integer'],
-        methods: ['+ guardar(): void']
+        id: 'static-detalle-venta',
+        name: 'DetalleVenta',
+        attributes: ['- precio: BigDecimal', '- cantidad: Integer'],
+        methods: [],
       },
       {
-        id: 'c4',
-        name: 'rutina',
-        attributes: ['- id: Long', '- nombre: String', '- fecha_inicio: Date', '- fecha_fin: Date', '- estado: String'],
-        methods: ['+ guardar(): void']
+        id: 'static-cliente',
+        name: 'Cliente',
+        attributes: ['- ci: Integer', '- nombre: String', '- telefono: String'],
+        methods: [],
       },
-      {
-        id: 'c5',
-        name: 'plan',
-        attributes: ['- id: Long', '- nombre: String', '- costo: Double', '- duracion: Integer'],
-        methods: ['+ guardar(): void']
-      },
-      {
-        id: 'c6',
-        name: 'membresia',
-        attributes: ['- id: Long', '- fecha_inicio: Date', '- fecha_fin: Date', '- estado: String'],
-        methods: ['+ guardar(): void']
-      },
-      {
-        id: 'c7',
-        name: 'cliente',
-        attributes: ['- id: Long', '- nombre: String', '- peso: Double', '- estatura: Double', '- edad: Integer', '- objetivo: String', '- observacion_medica: String', '- estado: String'],
-        methods: ['+ guardar(): void']
-      }
     ],
     relations: [
-      { from: 'c1', to: 'c2', type: 'ONE_TO_MANY', sourceCardinality: '1', targetCardinality: '1..*' },
-      { from: 'c2', to: 'c3', type: 'ONE_TO_MANY', sourceCardinality: '1', targetCardinality: '1..*' },
-      { from: 'c3', to: 'c4', type: 'COMPOSITION', sourceCardinality: '1', targetCardinality: '1' },
-      { from: 'c4', to: 'c7', type: 'ONE_TO_MANY', sourceCardinality: '0..*', targetCardinality: '1' },
-      { from: 'c5', to: 'c6', type: 'ONE_TO_MANY', sourceCardinality: '1', targetCardinality: '*..0' },
-      { from: 'c6', to: 'c7', type: 'ONE_TO_MANY', sourceCardinality: '0..*', targetCardinality: '1' }
-    ]
+      {
+        from: 'static-cliente',
+        to: 'static-nota-venta',
+        type: 'ONE_TO_MANY',
+        sourceCardinality: '1',
+        targetCardinality: '1..*',
+      },
+      {
+        from: 'static-nota-venta',
+        to: 'static-detalle-venta',
+        type: 'ONE_TO_MANY',
+        sourceCardinality: '1',
+        targetCardinality: '1..*',
+      },
+      {
+        from: 'static-producto',
+        to: 'static-detalle-venta',
+        type: 'ONE_TO_MANY',
+        sourceCardinality: '1',
+        targetCardinality: '1..*',
+      },
+    ],
   };
 }

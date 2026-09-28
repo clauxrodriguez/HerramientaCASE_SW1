@@ -117,26 +117,33 @@ export function applyActionsToDiagram(currentDiagram: any, actions: any[]): any 
     const target = (action && action.target) || {};
     const payload = action.payload;
 
+    const sameName = (left: any, right: any): boolean =>
+      left !== undefined && right !== undefined && String(left).trim().toLowerCase() === String(right).trim().toLowerCase();
+
+    const findClass = (ref: any): any | undefined => {
+      if (!ref) return undefined;
+      const refValue = typeof ref === 'object' ? (ref.id ?? ref.name) : ref;
+      return diagram.classes.find((cls: any) => sameName(cls.id, refValue) || sameName(cls.name, refValue));
+    };
+
     // Helper: resolver referencia de clase por id o por name (case-insensitive)
     const resolveClassRef = (ref: any): string | null => {
       if (!ref) return null;
       const targetStr = (typeof ref === 'string' ? ref : (ref.name ?? ref)).toString().toLowerCase().trim();
       
       // buscar por id
-      const byId = diagram.classes.find((c: any) => c.id && c.id.toString().toLowerCase() === targetStr);
+      const byId = diagram.classes.find((c: any) => c.id && sameName(c.id, targetStr));
       if (byId) return byId.id;
       
       // buscar por name
-      const byName = diagram.classes.find((c: any) => c.name && c.name.toString().toLowerCase() === targetStr);
+      const byName = diagram.classes.find((c: any) => c.name && sameName(c.name, targetStr));
       if (byName) return byName.id;
       return null;
     };
 
     switch (type) {
       case 'ADD_ATTRIBUTE': {
-        const className = target.className;
-        if (!className) break;
-        const cls = diagram.classes.find((c: any) => c.name === className);
+        const cls = findClass(target.className || target.classId);
         if (!cls) break;
         cls.attributes = Array.isArray(cls.attributes) ? cls.attributes : [];
         
@@ -151,25 +158,25 @@ export function applyActionsToDiagram(currentDiagram: any, actions: any[]): any 
           attr = { ...attr, isId: true, type: 'Long' };
         }
         
-        if (!cls.attributes.some((a: any) => a.name === attr.name)) {
+        if (!cls.attributes.some((a: any) => sameName(a.name, attr.name))) {
           cls.attributes.push(attr);
         }
         break;
       }
 
       case 'UPDATE_ATTRIBUTE': {
-        const className = target.className;
+        const className = target.className || target.classId;
         const attrName = target.attributeName || target.newAttributeName;
         if (!className || !attrName) break;
-        const cls = diagram.classes.find((c: any) => c.name === className);
+        const cls = findClass(className);
         if (!cls) break;
         cls.attributes = Array.isArray(cls.attributes) ? cls.attributes : [];
         
         // Buscar por nombre actual o nuevo nombre
-        let idx = cls.attributes.findIndex((a: any) => a.name === attrName);
+        let idx = cls.attributes.findIndex((a: any) => sameName(a.name, attrName) || sameName(a.id, attrName));
         if (idx === -1 && target.attributeName) {
           // Si no se encuentra, buscar por el nombre original
-          idx = cls.attributes.findIndex((a: any) => a.name === target.attributeName);
+          idx = cls.attributes.findIndex((a: any) => sameName(a.name, target.attributeName));
         }
         
         if (idx !== -1 && payload) {
@@ -196,12 +203,42 @@ export function applyActionsToDiagram(currentDiagram: any, actions: any[]): any 
       }
 
       case 'DELETE_ATTRIBUTE': {
-        const className = target.className;
+        const className = target.className || target.classId;
         const attrName = target.attributeName;
         if (!className || !attrName) break;
-        const cls = diagram.classes.find((c: any) => c.name === className);
+        const cls = findClass(className);
         if (!cls) break;
-        cls.attributes = (cls.attributes || []).filter((a: any) => a.name !== attrName);
+        cls.attributes = (cls.attributes || []).filter((a: any) => !sameName(a.name, attrName) && !sameName(a.id, attrName));
+        break;
+      }
+
+      case 'ADD_METHOD': {
+        const cls = findClass(target.className || target.classId);
+        if (!cls) break;
+        cls.methods = Array.isArray(cls.methods) ? cls.methods : [];
+        const method = { ...(payload || { name: 'nuevoMetodo', returnType: 'void', visibility: '+' }) };
+        if (!method.name) method.name = 'nuevoMetodo';
+        if (!method.returnType) method.returnType = 'void';
+        if (!method.visibility) method.visibility = '+';
+        if (!cls.methods.some((item: any) => sameName(item.name, method.name))) cls.methods.push(method);
+        break;
+      }
+
+      case 'UPDATE_METHOD': {
+        const cls = findClass(target.className || target.classId);
+        const methodName = target.methodName || target.newMethodName;
+        if (!cls || !methodName || !payload) break;
+        cls.methods = Array.isArray(cls.methods) ? cls.methods : [];
+        const index = cls.methods.findIndex((method: any) => sameName(method.name, methodName) || sameName(method.id, methodName));
+        if (index !== -1) cls.methods[index] = { ...cls.methods[index], ...payload };
+        break;
+      }
+
+      case 'DELETE_METHOD': {
+        const cls = findClass(target.className || target.classId);
+        const methodName = target.methodName;
+        if (!cls || !methodName) break;
+        cls.methods = (cls.methods || []).filter((method: any) => !sameName(method.name, methodName) && !sameName(method.id, methodName));
         break;
       }
 
@@ -299,29 +336,49 @@ export function applyActionsToDiagram(currentDiagram: any, actions: any[]): any 
         const from = target.className;
         const to = target.newClassName;
         if (!from || !to) break;
-        const cls = diagram.classes.find((c: any) => c.name === from);
+        const cls = findClass(from);
         if (!cls) break;
+        const oldName = cls.name;
         cls.name = to;
         (diagram.relations || []).forEach((r: any) => {
-          if (r.source === from) r.source = to;
-          if (r.target === from) r.target = to;
+          if (sameName(r.source, oldName)) r.source = to;
+          if (sameName(r.target, oldName)) r.target = to;
         });
         break;
       }
 
+      case 'UPDATE_CLASS': {
+        const cls = findClass(target.className || target.classId);
+        if (!cls || !payload) break;
+        const oldName = cls.name;
+        Object.assign(cls, payload);
+        if (payload.name && !sameName(payload.name, oldName)) {
+          (diagram.relations || []).forEach((r: any) => {
+            if (sameName(r.source, oldName)) r.source = cls.name;
+            if (sameName(r.target, oldName)) r.target = cls.name;
+          });
+        }
+        break;
+      }
+
       case 'CREATE_CLASS': {
-        const newCls = payload || {};
+        const newCls = { ...(payload || {}) };
         if (!newCls.name) break;
         diagram.classes = Array.isArray(diagram.classes) ? diagram.classes : [];
-        if (!diagram.classes.some((c: any) => c.name === newCls.name)) diagram.classes.push(newCls);
+        if (!newCls.id) newCls.id = genId('cls');
+        if (!Array.isArray(newCls.attributes)) newCls.attributes = [];
+        if (!Array.isArray(newCls.methods)) newCls.methods = [];
+        if (!diagram.classes.some((c: any) => sameName(c.name, newCls.name) || sameName(c.id, newCls.id))) diagram.classes.push(newCls);
         break;
       }
 
       case 'DELETE_CLASS': {
-        const className = target.className;
-        if (!className) break;
-        diagram.classes = (diagram.classes || []).filter((c: any) => c.name !== className);
-        diagram.relations = (diagram.relations || []).filter((r: any) => r.source !== className && r.target !== className);
+        const cls = findClass(target.className || target.classId);
+        if (!cls) break;
+        diagram.classes = (diagram.classes || []).filter((c: any) => c.id !== cls.id);
+        diagram.relations = (diagram.relations || []).filter((r: any) =>
+          r.source !== cls.id && r.target !== cls.id && !sameName(r.source, cls.name) && !sameName(r.target, cls.name)
+        );
         break;
       }
 

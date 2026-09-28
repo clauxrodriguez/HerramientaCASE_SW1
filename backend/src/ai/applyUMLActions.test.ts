@@ -72,3 +72,48 @@ describe('applyActionsToDiagram - relations', () => {
     expect(result.relations[0].label).toBe('nuevo');
   });
 });
+
+describe('applyActionsToDiagram - generic class members', () => {
+  test('adds, updates and deletes arbitrary attributes and methods case-insensitively', () => {
+    const diagram = {
+      classes: [{
+        id: 'c1',
+        name: 'FacturaEspecial',
+        attributes: [{ id: 'a1', name: 'codigoExterno', type: 'String' }],
+        methods: [{ id: 'm1', name: 'calcularImpuesto', returnType: 'BigDecimal' }]
+      }],
+      relations: []
+    };
+
+    const result = applyActionsToDiagram(diagram, [
+      { type: 'ADD_ATTRIBUTE', target: { className: 'facturaespecial' }, payload: { name: 'fechaEmision' } },
+      { type: 'UPDATE_ATTRIBUTE', target: { className: 'FACTURAESPECIAL', attributeName: 'codigoexterno' }, payload: { name: 'numeroFactura', type: 'Long' } },
+      { type: 'ADD_METHOD', target: { className: 'FacturaEspecial' }, payload: { name: 'emitir', returnType: 'Boolean' } },
+      { type: 'UPDATE_METHOD', target: { className: 'FacturaEspecial', methodName: 'CALCULARIMPUESTO' }, payload: { name: 'calcularTotal' } },
+      { type: 'DELETE_METHOD', target: { className: 'facturaespecial', methodName: 'emitir' } },
+      { type: 'DELETE_ATTRIBUTE', target: { className: 'FacturaEspecial', attributeName: 'FECHAEMISION' } }
+    ]);
+
+    expect(result.classes[0].attributes).toEqual([{ id: 'a1', name: 'numeroFactura', type: 'Long' }]);
+    expect(result.classes[0].methods).toEqual([{ id: 'm1', name: 'calcularTotal', returnType: 'BigDecimal' }]);
+  });
+
+  test('updates, renames and deletes classes while preserving relation references', () => {
+    const diagram = {
+      classes: [{ id: 'c1', name: 'Persona' }, { id: 'c2', name: 'Perfil' }],
+      relations: [{ id: 'r1', source: 'c1', target: 'c2', type: 'ONE_TO_ONE' }]
+    };
+
+    const renamed = applyActionsToDiagram(diagram, [
+      { type: 'UPDATE_CLASS', target: { className: 'persona' }, payload: { isAbstract: true } },
+      { type: 'RENAME_CLASS', target: { className: 'PERSONA', newClassName: 'UsuarioBase' } }
+    ]);
+
+    expect(renamed.classes[0]).toMatchObject({ name: 'UsuarioBase', isAbstract: true });
+    expect(renamed.relations[0].source).toBe('c1');
+
+    const deleted = applyActionsToDiagram(renamed, [{ type: 'DELETE_CLASS', target: { className: 'usuariobase' } }]);
+    expect(deleted.classes).toHaveLength(1);
+    expect(deleted.relations).toHaveLength(0);
+  });
+});

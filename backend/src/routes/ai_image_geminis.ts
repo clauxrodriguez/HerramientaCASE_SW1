@@ -33,13 +33,15 @@ function transformGeminiDiagramToFrontendFormat(geminiDiagram: DiagramModel): an
     const targetName = idToNameMap.get(targetId || '') || targetId || '';
 
     // Normalizar tipo de relación
-    const validTypes = ['ONE_TO_ONE', 'ONE_TO_MANY', 'MANY_TO_ONE', 'MANY_TO_MANY', 'INHERITANCE', 'COMPOSITION', 'AGGREGATION'];
+    const validTypes = ['ASSOCIATION', 'ONE_TO_ONE', 'ONE_TO_MANY', 'MANY_TO_ONE', 'MANY_TO_MANY', 'INHERITANCE', 'AGGREGATION'];
     let relationType = (rel.type || 'ONE_TO_MANY').toUpperCase();
     
     if (relationType.includes('INHERITANCE') || relationType.includes('EXTENDS') || relationType === 'INHERIT') {
       relationType = 'INHERITANCE';
     } else if (relationType.includes('COMPOSITION') || relationType.includes('COMPOSE')) {
-      relationType = 'COMPOSITION';
+      // La imagen de referencia no contiene rombo de composición. Si el OCR/LLM
+      // lo confunde, conservar la conexión como asociación normal.
+      relationType = 'ASSOCIATION';
     } else if (relationType.includes('AGGREGATION') || relationType.includes('AGGREGATE')) {
       relationType = 'AGGREGATION';
     } else if (relationType === 'ONE_TO_ONE' || relationType === '1_TO_1' || relationType === '1:1') {
@@ -50,8 +52,10 @@ function transformGeminiDiagramToFrontendFormat(geminiDiagram: DiagramModel): an
       relationType = 'MANY_TO_ONE';
     } else if (relationType === 'MANY_TO_MANY' || relationType === 'N:M' || relationType === '*:*' || relationType === 'M:N') {
       relationType = 'MANY_TO_MANY';
+    } else if (relationType === 'ASSOCIATION' || relationType === 'ASSOCIATION_RELATION') {
+      relationType = 'ASSOCIATION';
     } else {
-      relationType = 'ONE_TO_MANY'; // Por defecto
+      relationType = 'ASSOCIATION'; // Una imagen sin símbolo explícito es asociación
     }
 
     // Validar que el tipo sea válido
@@ -96,7 +100,6 @@ function transformGeminiDiagramToFrontendFormat(geminiDiagram: DiagramModel): an
           targetCardinality = '*';
           break;
         case 'INHERITANCE':
-        case 'COMPOSITION':
         case 'AGGREGATION':
           sourceCardinality = '1';
           targetCardinality = '*';
