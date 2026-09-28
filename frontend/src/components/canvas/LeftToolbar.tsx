@@ -29,8 +29,7 @@ export const LeftToolbar: React.FC<{
     activeTool, 
     setActiveTool, 
     addClass, 
-    setClasses,
-    setRelations,
+    replaceDiagram,
     isOnline, 
     syncQueue, 
     clearSyncQueue,
@@ -90,8 +89,7 @@ export const LeftToolbar: React.FC<{
         const content = event.target?.result as string;
         const result = xmiService.importXMI(content);
         if (result && result.classes && result.classes.length > 0) {
-          setClasses(result.classes);
-          setRelations(result.relations);
+          replaceDiagram(result.classes, result.relations);
           alert(`¡Archivo XML "${file.name}" cargado e importado con ${result.classes.length} clase(s) y ${result.relations.length} relación(es)!`);
         } else {
           alert('No se pudieron extraer clases del archivo XML seleccionado.');

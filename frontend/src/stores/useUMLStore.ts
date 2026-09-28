@@ -29,6 +29,7 @@ interface UMLStoreState {
   saveProjectState: () => void;
   setClasses: (classes: UMLClass[]) => void;
   setRelations: (relations: Relation[]) => void;
+  replaceDiagram: (classes: UMLClass[], relations: Relation[]) => void;
   setActiveTool: (tool: ActiveTool) => void;
   selectClass: (id: string | null) => void;
   selectRelation: (id: string | null) => void;
@@ -208,6 +209,11 @@ export const useUMLStore = create<UMLStoreState>((set, get) => ({
     set({ relations });
     const pId = get().projectId;
     if (pId) emitDiagramUpdate(pId, { classes: get().classes, relations });
+  },
+  replaceDiagram: (classes, relations) => {
+    set({ classes, relations, selectedClassId: null, selectedRelationId: null, relationCreationSource: null });
+    const pId = get().projectId;
+    if (pId) emitDiagramUpdate(pId, { classes, relations });
   },
   setActiveTool: (activeTool) => set({ activeTool, relationCreationSource: null }),
   selectClass: (id) => set({ selectedClassId: id, selectedRelationId: id ? null : get().selectedRelationId }),

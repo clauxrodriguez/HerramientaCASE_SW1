@@ -72,6 +72,8 @@ export const RelationEditorPanel: React.FC = () => {
             <option value="MANY_TO_ONE">Muchos a Uno (* ── 1)</option>
             <option value="ONE_TO_ONE">Uno a Uno (1 ── 1)</option>
             <option value="MANY_TO_MANY">Muchos a Muchos (* ── *)</option>
+            <option value="ASSOCIATION">Asociación</option>
+            <option value="DEPENDENCY">Dependencia (flecha discontinua)</option>
             <option value="COMPOSITION">Composición (◆ ── Contiene)</option>
             <option value="AGGREGATION">Agregación (◇ ── Agrega)</option>
             <option value="INHERITANCE">Herencia / Generalización (△ ── Hereda)</option>

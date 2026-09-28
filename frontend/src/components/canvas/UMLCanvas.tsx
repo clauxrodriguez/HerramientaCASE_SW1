@@ -237,6 +237,7 @@ export const UMLCanvas: React.FC = () => {
             if (!source || !target) return null;
 
             const isSelectedRelation = selectedRelationId === rel.id;
+            const relationType = String(rel.type).toUpperCase();
 
             const startX = source.x + 110;
             const startY = source.y + 60;
@@ -252,6 +253,8 @@ export const UMLCanvas: React.FC = () => {
 
             const sourceMultText = rel.sourceCardinality || (rel.type === 'MANY_TO_ONE' || rel.type === 'MANY_TO_MANY' ? '*' : '1');
             const targetMultText = rel.targetCardinality || (rel.type === 'ONE_TO_MANY' || rel.type === 'MANY_TO_MANY' ? '*' : '1');
+            const angle = Math.atan2(endY - startY, endX - startX) * 180 / Math.PI;
+            const relationStroke = isSelectedRelation ? '#0284C7' : '#475569';
 
             return (
               <Group
@@ -262,11 +265,53 @@ export const UMLCanvas: React.FC = () => {
                 {/* Línea de Relación interactiva con margen de clic amplio */}
                 <Line
                   points={[startX, startY, endX, endY]}
-                  stroke={isSelectedRelation ? '#0284C7' : '#475569'}
+                  stroke={relationStroke}
                   strokeWidth={isSelectedRelation ? 4 : 2.5}
-                  dash={rel.type === 'dependency' ? [6, 6] : undefined}
+                  dash={relationType === 'DEPENDENCY' ? [6, 6] : undefined}
                   hitStrokeWidth={20}
                 />
+
+                {relationType === 'INHERITANCE' || relationType === 'GENERALIZATION' ? (
+                  <Group x={endX} y={endY} rotation={angle} listening={false}>
+                    <Line
+                      points={[0, 0, -20, -11, -20, 11]}
+                      closed
+                      fill="#FFFFFF"
+                      stroke={relationStroke}
+                      strokeWidth={2.5}
+                    />
+                  </Group>
+                ) : null}
+
+                {relationType === 'COMPOSITION' ? (
+                  <Group x={startX} y={startY} rotation={angle} listening={false}>
+                    <Line
+                      points={[0, 0, 12, -9, 24, 0, 12, 9]}
+                      closed
+                      fill={relationStroke}
+                      stroke={relationStroke}
+                      strokeWidth={2}
+                    />
+                  </Group>
+                ) : null}
+
+                {relationType === 'AGGREGATION' ? (
+                  <Group x={startX} y={startY} rotation={angle} listening={false}>
+                    <Line
+                      points={[0, 0, 12, -9, 24, 0, 12, 9]}
+                      closed
+                      fill="#FFFFFF"
+                      stroke={relationStroke}
+                      strokeWidth={2.5}
+                    />
+                  </Group>
+                ) : null}
+
+                {relationType === 'DEPENDENCY' ? (
+                  <Group x={endX} y={endY} rotation={angle} listening={false}>
+                    <Line points={[0, 0, -13, -7, -10, 0, -13, 7]} stroke={relationStroke} strokeWidth={2} />
+                  </Group>
+                ) : null}
 
                 {/* Badge Multiplicidad Origen */}
                 <Group x={sourceMultX - 14} y={sourceMultY - 10} onClick={() => selectRelation(rel.id)}>

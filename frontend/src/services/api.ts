@@ -1,15 +1,9 @@
 import axios, { InternalAxiosRequestConfig } from 'axios';
 import { DiagramData, UMLClass, Relation } from '../types/uml';
-
-// URL de respaldo directo a tu backend de Render
-const DEFAULT_API_URL = 'https://case-backend-1qbr.onrender.com';
-
-// Limpieza preventiva por si Render inyectó caracteres de Markdown
-const rawEnvUrl = import.meta.env.VITE_API_URL || '';
-const cleanEnvUrl = rawEnvUrl.replace(/\[\vert{}\]|\(\vert{}\)/g, '').trim();
+import { API_BASE } from '../config';
 
 export const api = axios.create({
-  baseURL: cleanEnvUrl || DEFAULT_API_URL,
+  baseURL: API_BASE,
   headers: {
     'Content-Type': 'application/json',
   },
@@ -26,13 +20,13 @@ api.interceptors.request.use((config: InternalAxiosRequestConfig) => {
 export const aiService = {
   // Generar UML desde prompt de texto
   generateDiagramFromText: async (prompt: string): Promise<{ classes: UMLClass[]; relations: Relation[] }> => {
-    const response = await api.post('/ai/generate-diagram', { text: prompt });
+    const response = await api.post('/api/ai/generate-diagram', { text: prompt });
     return response.data;
   },
 
   // Modificar UML existente con comando en lenguaje natural
   modifyDiagramFromText: async (prompt: string, currentDiagram: DiagramData) => {
-    const response = await api.post('/ai/modify-diagram', {
+    const response = await api.post('/api/ai/modify-diagram', {
       text: prompt,
       diagram: currentDiagram,
     });
@@ -46,7 +40,7 @@ export const aiService = {
     formData.append('lang', 'es');
     formData.append('useLLM', 'true');
 
-    const response = await api.post('/ai/image-to-diagram', formData, {
+    const response = await api.post('/api/ai/image-to-diagram', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
     });
     return response.data;
@@ -57,7 +51,7 @@ export const codeGeneratorService = {
   // Descarga ZIP de proyecto Spring Boot
   exportSpringBoot: async (packageName: string, classes: UMLClass[], relations: Relation[]) => {
     const response = await api.post(
-      '/generator/spring',
+      '/api/generator/spring',
       { package: packageName, classes, relations },
       { responseType: 'blob' }
     );
@@ -75,7 +69,7 @@ export const codeGeneratorService = {
   // Descarga ZIP de aplicación Flutter
   exportFlutter: async (projectName: string, classes: UMLClass[], relations: Relation[]) => {
     const response = await api.post(
-      '/generator/flutter',
+      '/api/generator/flutter',
       { name: projectName, classes, relations },
       { responseType: 'blob' }
     );
@@ -310,9 +304,39 @@ export const xmiService = {
       const classNodes = Array.from(xmlDoc.getElementsByTagName('UML:Class'));
       const assocNodes = Array.from(xmlDoc.getElementsByTagName('UML:Association'));
       const diagElemNodes = Array.from(xmlDoc.getElementsByTagName('UML:DiagramElement'));
+      const diagramNodes = Array.from(xmlDoc.getElementsByTagName('UML:Diagram'));
+
+      // Architect exporta todo el repository y puede incluir varias copias del
+      // mismo modelo. Importar todas las UML:Class mezcla diagramas distintos.
+      // Seleccionar la última vista de clases exportada limita la importación a
+      // los elementos visibles de un único diagrama.
+      const classNodeIds = new Set(
+        classNodes
+          .filter((node) => node.getAttribute('name')?.trim().toLowerCase() !== 'earootclass')
+          .map((node) => node.getAttribute('xmi.id') || node.getAttribute('id'))
+          .filter((id): id is string => Boolean(id))
+      );
+      const diagramSelections = diagramNodes.map((diagram) => {
+        const elements = Array.from(diagram.getElementsByTagName('UML:DiagramElement'));
+        const subjects = elements
+          .map((element) => element.getAttribute('subject'))
+          .filter((subject): subject is string => Boolean(subject));
+        return {
+          nodeSubjects: new Set(subjects.filter((subject) => classNodeIds.has(subject))),
+          relationSubjects: new Set(subjects.filter((subject) => assocNodes.some((association) =>
+            (association.getAttribute('xmi.id') || association.getAttribute('id')) === subject
+          ))),
+        };
+      }).filter((selection) => selection.nodeSubjects.size > 0);
+      const selectedDiagram = diagramSelections[diagramSelections.length - 1];
+      const selectedClassIds = selectedDiagram?.nodeSubjects;
+      const selectedRelationIds = selectedDiagram?.relationSubjects;
 
       const geometryMap = new Map<string, { x: number; y: number }>();
-      diagElemNodes.forEach((elem) => {
+      const selectedDiagramElements = selectedDiagram
+        ? diagElemNodes.filter((elem) => selectedDiagram.nodeSubjects.has(elem.getAttribute('subject') || '') || selectedDiagram.relationSubjects.has(elem.getAttribute('subject') || ''))
+        : diagElemNodes;
+      selectedDiagramElements.forEach((elem) => {
         const subject = elem.getAttribute('subject');
         const geom = elem.getAttribute('geometry');
         if (subject && geom) {
@@ -328,14 +352,33 @@ export const xmiService = {
       });
 
       const classNameToIdMap = new Map<string, string>();
+      const eaLocalIdToIdMap = new Map<string, string>();
       const parsedClasses: UMLClass[] = [];
+      const seenClassIds = new Set<string>();
+      const seenClassNames = new Set<string>();
 
       classNodes.forEach((node, index) => {
         const name = node.getAttribute('name') || `Clase_${index + 1}`;
         const rawId = node.getAttribute('xmi.id') || node.getAttribute('id') || `cls-${index + 1}`;
         const isAbstract = node.getAttribute('isAbstract') === 'true';
 
+        // Enterprise Architect incluye un clasificador técnico que no es una
+        // clase del diagrama y usa ea_localid para los extremos de relaciones.
+        if (name.trim().toLowerCase() === 'earootclass' || node.getAttribute('isRoot') === 'true') return;
+        if (selectedClassIds && !selectedClassIds.has(rawId)) return;
+
+        // Architect puede repetir el mismo clasificador en distintas secciones
+        // del XMI. Solo se debe importar una instancia por ID o nombre.
+        const normalizedName = name.trim().toLowerCase();
+        if (seenClassIds.has(rawId) || seenClassNames.has(normalizedName)) return;
+        seenClassIds.add(rawId);
+        seenClassNames.add(normalizedName);
+
         classNameToIdMap.set(name.toLowerCase(), rawId);
+        const taggedValues = Array.from(node.getElementsByTagName('UML:TaggedValue'));
+        const localIdTag = taggedValues.find((tag) => tag.getAttribute('tag') === 'ea_localid');
+        const localId = localIdTag?.getAttribute('value');
+        if (localId) eaLocalIdToIdMap.set(localId, rawId);
 
         // Extraer Atributos
         const attrNodes = Array.from(node.getElementsByTagName('UML:Attribute'));
@@ -394,8 +437,9 @@ export const xmiService = {
 
         // Posición
         const geomPos = geometryMap.get(rawId);
-        const col = index % 2;
-        const row = Math.floor(index / 2);
+        const parsedIndex = parsedClasses.length;
+        const col = parsedIndex % 3;
+        const row = Math.floor(parsedIndex / 3);
         const defaultX = 80 + col * 320;
         const defaultY = 80 + row * 260;
 
@@ -412,8 +456,10 @@ export const xmiService = {
 
       // Extraer Relaciones / Asociaciones
       const parsedRelations: Relation[] = [];
+      const seenRelationKeys = new Set<string>();
       assocNodes.forEach((assocNode, rIdx) => {
         const relId = assocNode.getAttribute('xmi.id') || assocNode.getAttribute('id') || `rel-${rIdx + 1}`;
+        if (selectedRelationIds && selectedRelationIds.size > 0 && !selectedRelationIds.has(relId)) return;
         const taggedValues = Array.from(assocNode.getElementsByTagName('UML:TaggedValue'));
 
         const getTag = (name: string) => {
@@ -423,8 +469,10 @@ export const xmiService = {
 
         const sName = getTag('ea_sourceName') || '';
         const tName = getTag('ea_targetName') || '';
-        let sId = getTag('ea_sourceID') || classNameToIdMap.get(sName.toLowerCase()) || '';
-        let tId = getTag('ea_targetID') || classNameToIdMap.get(tName.toLowerCase()) || '';
+        const sourceRef = getTag('ea_sourceID') || '';
+        const targetRef = getTag('ea_targetID') || '';
+        let sId = eaLocalIdToIdMap.get(sourceRef) || classNameToIdMap.get(sName.toLowerCase()) || '';
+        let tId = eaLocalIdToIdMap.get(targetRef) || classNameToIdMap.get(tName.toLowerCase()) || '';
 
         if (!sId || !tId) {
           const ends = Array.from(assocNode.getElementsByTagName('UML:AssociationEnd'));
@@ -436,11 +484,23 @@ export const xmiService = {
           }
         }
 
+        // Algunos XMI de Architect solo dejan los IDs EA en los extremos.
+        // Resolverlos por xmi.id evita relaciones huérfanas en el canvas.
+        sId = eaLocalIdToIdMap.get(sId) || sId;
+        tId = eaLocalIdToIdMap.get(tId) || tId;
+
         const lb = getTag('lb') || '1';
         const rb = getTag('rb') || '*';
-        const eaType = getTag('ea_type') || 'ONE_TO_MANY';
+        const rawEaType = (getTag('ea_type') || '').toUpperCase();
+        const eaType = rawEaType === 'ASSOCIATION' || rawEaType === 'ASSOCIATION_RELATION'
+          ? 'ASSOCIATION'
+          : rawEaType || 'ONE_TO_MANY';
 
         if (sId && tId) {
+          const relationKey = [sId, tId, eaType, lb, rb].join('|').toLowerCase();
+          const reverseRelationKey = [tId, sId, eaType, rb, lb].join('|').toLowerCase();
+          if (seenRelationKeys.has(relationKey) || seenRelationKeys.has(reverseRelationKey)) return;
+          seenRelationKeys.add(relationKey);
           parsedRelations.push({
             id: relId,
             sourceId: sId,

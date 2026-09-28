@@ -71,7 +71,6 @@ export const initSocket = (diagramId: string, token: string) => {
     useUMLStore.getState().setOnlineStatus(true);
     const user = getOrInitGuestUser();
     socket?.emit('diagram:join', { diagramId, user });
-    broadcastCurrentState();
   });
 
   socket.on('disconnect', () => {

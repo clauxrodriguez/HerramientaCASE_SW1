@@ -27,11 +27,14 @@ export interface UMLClass {
 }
 
 export type RelationType = 
-  | 'association' 
-  | 'inheritance' 
+  | 'association'
+  | 'ASSOCIATION'
+  | 'inheritance'
+  | 'GENERALIZATION'
   | 'aggregation' 
   | 'composition' 
   | 'dependency'
+  | 'DEPENDENCY'
   | 'ONE_TO_ONE'
   | 'ONE_TO_MANY'
   | 'MANY_TO_ONE'
